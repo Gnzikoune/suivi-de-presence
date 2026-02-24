@@ -301,9 +301,9 @@ export default function DocumentationPage() {
                   L'application fonctionne-t-elle hors connexion ?
                 </AccordionTrigger>
                 <AccordionContent className="text-muted-foreground pb-6 leading-relaxed">
-                  L'application utilise une mise en cache avancée pour afficher les données existantes, mais la 
-                  <strong> synchronisation forcée vers Airtable</strong> nécessite une connexion internet active. 
-                  En cas de coupure lors de l'enregistrement, un message d'erreur vous avertira.
+                  **Oui, absolument !** L'application est nativement conçue pour fonctionner avec une connexion instable. 
+                  Si vous perdez internet, vous pouvez continuer à saisir les présences. Elles seront stockées dans une 
+                  **file d'attente locale sécurisée** et synchronisées automatiquement dès que la connexion est rétablie.
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
