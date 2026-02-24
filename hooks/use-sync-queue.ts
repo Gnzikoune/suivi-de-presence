@@ -1,18 +1,20 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { saveAttendance } from "@/lib/api-service"
+import { saveAttendance, addStudent, updateStudent, deleteStudent } from "@/lib/api-service"
 import { toast } from "sonner"
+import type { ClassId, Student } from "@/lib/types"
 
-interface SyncItem {
+export type SyncActionType = 'ATTENDANCE' | 'ADD_STUDENT' | 'UPDATE_STUDENT' | 'DELETE_STUDENT';
+
+export interface SyncItem {
   id: string
-  date: string
-  classId: string
-  presentStudentsData: { studentId: string, arrivalTime: string }[]
+  type: SyncActionType
+  payload: any
   timestamp: number
 }
 
-const STORAGE_KEY = "attendance_sync_queue"
+const STORAGE_KEY = "suivi_presence_sync_queue"
 
 export function useSyncQueue() {
   const [isOnline, setIsOnline] = useState(true)
@@ -23,7 +25,11 @@ export function useSyncQueue() {
   useEffect(() => {
     const savedQueue = localStorage.getItem(STORAGE_KEY)
     if (savedQueue) {
-      setQueue(JSON.parse(savedQueue))
+      try {
+        setQueue(JSON.parse(savedQueue))
+      } catch (e) {
+        console.error("Failed to parse sync queue", e)
+      }
     }
 
     // Network listeners
@@ -54,13 +60,34 @@ export function useSyncQueue() {
     const itemsToSync = [...queue]
     const remainingItems: SyncItem[] = []
 
-    toast.info(`Synchronisation de ${itemsToSync.length} session(s) en attente...`)
+    toast.info(`Synchronisation de ${itemsToSync.length} opération(s) en attente...`)
 
     for (const item of itemsToSync) {
       try {
-        await saveAttendance(item.date, item.classId as any, item.presentStudentsData)
+        switch (item.type) {
+          case 'ATTENDANCE':
+            await saveAttendance(
+              item.payload.date, 
+              item.payload.classId, 
+              item.payload.presentStudentsData
+            )
+            break
+          case 'ADD_STUDENT':
+            await addStudent(
+              item.payload.firstName, 
+              item.payload.lastName, 
+              item.payload.classId
+            )
+            break
+          case 'UPDATE_STUDENT':
+            await updateStudent(item.payload.id, item.payload.updates)
+            break
+          case 'DELETE_STUDENT':
+            await deleteStudent(item.payload.id)
+            break
+        }
       } catch (error) {
-        console.error("Sync failed for item:", item, error)
+        console.error(`Sync failed for item ${item.id} (${item.type}):`, error)
         remainingItems.push(item)
       }
     }
@@ -70,8 +97,8 @@ export function useSyncQueue() {
 
     if (remainingItems.length === 0) {
       toast.success("Toutes les données sont synchronisées ! ✅")
-    } else {
-      toast.error(`${remainingItems.length} session(s) n'ont pas pu être synchronisées.`)
+    } else if (remainingItems.length < itemsToSync.length) {
+      toast.warning(`${itemsToSync.length - remainingItems.length} opérations synchronisées, ${remainingItems.length} restantes.`)
     }
   }, [queue, isOnline, isSyncing])
 
@@ -82,16 +109,15 @@ export function useSyncQueue() {
     }
   }, [isOnline])
 
-  const addToQueue = useCallback((date: string, classId: string, presentStudentsData: { studentId: string, arrivalTime: string }[]) => {
+  const addToQueue = useCallback((type: SyncActionType, payload: any) => {
     const newItem: SyncItem = {
       id: crypto.randomUUID(),
-      date,
-      classId,
-      presentStudentsData,
+      type,
+      payload,
       timestamp: Date.now()
     }
     setQueue(prev => [...prev, newItem])
-    toast.warning("Mode hors-ligne : données enregistrées localement. 💾 Elles seront envoyées dès le retour d'Internet.")
+    toast.warning("Mode hors-ligne : opération mise en attente. 💾 Elle sera exécutée dès le retour d'Internet.")
   }, [])
 
   return {
