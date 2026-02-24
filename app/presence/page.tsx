@@ -36,13 +36,16 @@ import {
 } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { fetchStudents, fetchRecords, saveAttendance } from "@/lib/api-service"
+import { useSyncQueue } from "@/hooks/use-sync-queue"
 import type { Student, ClassId, AttendanceRecord } from "@/lib/types"
 import { FORMATION_START, FORMATION_END } from "@/lib/constants"
 import { cn } from "@/lib/utils"
+import { Wifi, WifiOff, RefreshCw } from "lucide-react"
 
 export default function PresencePage() {
   const { data: students = [] } = useSWR("students", fetchStudents)
   const { data: records = [] } = useSWR("records", fetchRecords)
+  const { isOnline, queue, addToQueue, isSyncing, sync } = useSyncQueue()
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [selectedClass, setSelectedClass] = useState<ClassId>("morning")
@@ -121,20 +124,27 @@ export default function PresencePage() {
       toast.error("Impossible de saisir la présence un jour de week-end")
       return
     }
+    
+    const presentStudentsData = Array.from(presenceMap.entries()).map(([studentId, arrivalTime]) => ({
+      studentId,
+      arrivalTime
+    }))
+
+    if (!isOnline) {
+      addToQueue(dateStr, selectedClass, presentStudentsData)
+      return
+    }
+
     setSaving(true)
     try {
-      const presentStudentsData = Array.from(presenceMap.entries()).map(([studentId, arrivalTime]) => ({
-        studentId,
-        arrivalTime
-      }))
-      
       await saveAttendance(dateStr, selectedClass, presentStudentsData)
       await mutate("records")
       toast.success(
         `Présence enregistrée pour le ${format(selectedDate, "dd MMMM yyyy", { locale: fr })} - ${selectedClass === "morning" ? "Matin" : "Après-midi"}`
       )
     } catch (error) {
-      toast.error("Erreur lors de l'enregistrement")
+      toast.error("Erreur lors de l'enregistrement. Les données ont été stockées localement.")
+      addToQueue(dateStr, selectedClass, presentStudentsData)
     } finally {
       setSaving(false)
     }
@@ -149,10 +159,39 @@ export default function PresencePage() {
         title="Prise de Présence"
         description={`${format(selectedDate, "EEEE dd MMMM yyyy", { locale: fr })}`}
       >
-        <Button onClick={handleSave} size="sm" disabled={isWeekendDay || totalCount === 0 || saving}>
-          <Save className={cn("size-4", saving && "animate-spin")} />
-          <span>{saving ? "Enregistrement..." : "Enregistrer"}</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          {queue.length > 0 && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={sync} 
+              disabled={!isOnline || isSyncing}
+              className="relative border-warning text-warning hover:bg-warning/10"
+            >
+              <RefreshCw className={cn("size-4 mr-2", isSyncing && "animate-spin")} />
+              <span>Sinc. ({queue.length})</span>
+              <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-warning opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-warning"></span>
+              </span>
+            </Button>
+          )}
+          
+          <Badge variant="outline" className={cn(
+            "h-9 px-3 flex gap-2 items-center",
+            isOnline ? "border-success text-success bg-success/5" : "border-destructive text-destructive bg-destructive/5"
+          )}>
+            {isOnline ? <Wifi className="size-3.5" /> : <WifiOff className="size-3.5" />}
+            <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider">
+              {isOnline ? "En Ligne" : "Hors Ligne"}
+            </span>
+          </Badge>
+
+          <Button onClick={handleSave} size="sm" disabled={isWeekendDay || totalCount === 0 || saving}>
+            <Save className={cn("size-4", saving && "animate-spin")} />
+            <span>{saving ? "Enregistrement..." : "Enregistrer"}</span>
+          </Button>
+        </div>
       </PageHeader>
 
       <div className="flex flex-col gap-6 p-4 md:p-6 pb-20 max-w-5xl mx-auto w-full">
