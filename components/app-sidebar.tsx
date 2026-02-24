@@ -10,10 +10,12 @@ import {
   BarChart3,
   GraduationCap,
   Database,
+  LogOut,
 } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -114,6 +116,23 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter className="p-4 border-t border-border/50">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={() => {
+                localStorage.removeItem("auth_session")
+                window.location.href = "/"
+              }}
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              tooltip="Se déconnecter"
+            >
+              <LogOut className="size-4" />
+              <span className="font-bold">Déconnexion</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )
