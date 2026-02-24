@@ -3,11 +3,12 @@
 import { useState, useCallback, useMemo } from "react"
 import useSWR, { mutate } from "swr"
 import { toast } from "sonner"
-import { Plus, Search, Pencil, Trash2, Users, Sun, Moon } from "lucide-react"
+import { Plus, Search, Pencil, Trash2, Users, Sun, Moon, Wifi, WifiOff, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PageHeader } from "@/components/page-header"
 import { StudentForm } from "@/components/student-form"
 import { StudentUpload } from "@/components/student-upload"
+import { useSyncQueue } from "@/hooks/use-sync-queue"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -42,6 +43,7 @@ import { fr } from "date-fns/locale"
 import { TableSkeleton } from "@/components/table-skeleton"
 
 export default function ApprenantsPage() {
+  const { isOnline, queue, isSyncing, addToQueue, sync } = useSyncQueue()
   const { data: students = [], isLoading } = useSWR("students", fetchStudents)
 
   const [search, setSearch] = useState("")
@@ -76,21 +78,37 @@ export default function ApprenantsPage() {
 
   const handleAdd = useCallback(
     async (data: { firstName: string; lastName: string; classId: ClassId }) => {
+      if (!isOnline) {
+        addToQueue('ADD_STUDENT', data)
+        setFormOpen(false)
+        return
+      }
       try {
         await addStudent(data.firstName, data.lastName, data.classId)
         mutate("students")
         toast.success("Apprenant ajouté avec succès")
         setFormOpen(false)
       } catch (error) {
-        toast.error("Erreur lors de l'ajout de l'apprenant")
+        toast.error("Erreur serveur. L'opération a été mise en attente localement.")
+        addToQueue('ADD_STUDENT', data)
+        setFormOpen(false)
       }
     },
-    []
+    [isOnline, addToQueue]
   )
 
   const handleEdit = useCallback(
     async (data: { firstName: string; lastName: string; classId: ClassId }) => {
       if (!editingStudent) return
+      const payload = { id: editingStudent.id, updates: data }
+
+      if (!isOnline) {
+        addToQueue('UPDATE_STUDENT', payload)
+        setEditingStudent(null)
+        setFormOpen(false)
+        return
+      }
+
       try {
         await updateStudent(editingStudent.id, data)
         mutate("students")
@@ -98,14 +116,25 @@ export default function ApprenantsPage() {
         setFormOpen(false)
         toast.success("Apprenant modifié avec succès")
       } catch (error) {
-        toast.error("Erreur lors de la modification")
+        toast.error("Erreur serveur. Modification mise en attente localement.")
+        addToQueue('UPDATE_STUDENT', payload)
+        setEditingStudent(null)
+        setFormOpen(false)
       }
     },
-    [editingStudent]
+    [editingStudent, isOnline, addToQueue]
   )
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return
+    const payload = { id: deleteTarget.id }
+
+    if (!isOnline) {
+      addToQueue('DELETE_STUDENT', payload)
+      setDeleteTarget(null)
+      return
+    }
+
     try {
       await deleteStudent(deleteTarget.id)
       mutate("students")
@@ -113,9 +142,11 @@ export default function ApprenantsPage() {
       setDeleteTarget(null)
       toast.success("Apprenant supprimé avec succès")
     } catch (error) {
-      toast.error("Erreur lors de la suppression")
+      toast.error("Erreur serveur. Suppression mise en attente localement.")
+      addToQueue('DELETE_STUDENT', payload)
+      setDeleteTarget(null)
     }
-  }, [deleteTarget])
+  }, [deleteTarget, isOnline, addToQueue])
 
   const handleClearAll = useCallback(() => {
     // Note: clearAllStudents non implémenté côté API pour raison de sécurité
@@ -129,6 +160,31 @@ export default function ApprenantsPage() {
         title="Gestion des Apprenants"
         description={`${students.length} apprenant${students.length !== 1 ? "s" : ""} au total`}
       >
+        {/* Connection Status & Sync */}
+        <div className="flex items-center gap-2 mr-2">
+          {isOnline ? (
+            <Badge variant="outline" className="bg-success/5 text-success border-success/20 gap-1 hidden sm:flex">
+              <Wifi className="size-3" /> En ligne
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="bg-destructive/5 text-destructive border-destructive/20 gap-1">
+              <WifiOff className="size-3" /> Hors-ligne
+            </Badge>
+          )}
+
+          {queue.length > 0 && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => sync()}
+              disabled={isSyncing || !isOnline}
+              className="h-8 gap-2 border-primary/20 text-primary bg-primary/5 hover:bg-primary/10"
+            >
+              <RefreshCw className={cn("size-3", isSyncing && "animate-spin")} />
+              <span className="text-xs font-bold">{queue.length}</span>
+            </Button>
+          )}
+        </div>
         <Button
           onClick={() => {
             setEditingStudent(null)

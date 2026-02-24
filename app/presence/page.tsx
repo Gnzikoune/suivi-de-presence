@@ -131,7 +131,7 @@ export default function PresencePage() {
     }))
 
     if (!isOnline) {
-      addToQueue(dateStr, selectedClass, presentStudentsData)
+      addToQueue('ATTENDANCE', { date: dateStr, classId: selectedClass, presentStudentsData })
       return
     }
 
@@ -144,7 +144,7 @@ export default function PresencePage() {
       )
     } catch (error) {
       toast.error("Erreur lors de l'enregistrement. Les données ont été stockées localement.")
-      addToQueue(dateStr, selectedClass, presentStudentsData)
+      addToQueue('ATTENDANCE', { date: dateStr, classId: selectedClass, presentStudentsData })
     } finally {
       setSaving(false)
     }
