@@ -301,9 +301,9 @@ export default function DocumentationPage() {
                   L'application fonctionne-t-elle hors connexion ?
                 </AccordionTrigger>
                 <AccordionContent className="text-muted-foreground pb-6 leading-relaxed">
-                  **Oui, absolument !** L'application est nativement conçue pour fonctionner avec une connexion instable. 
+                  <strong>Oui, absolument !</strong> L'application est nativement conçue pour fonctionner avec une connexion instable. 
                   Si vous perdez internet, vous pouvez continuer à saisir les présences. Elles seront stockées dans une 
-                  **file d'attente locale sécurisée** et synchronisées automatiquement dès que la connexion est rétablie.
+                  <strong> file d'attente locale sécurisée</strong> et synchronisées automatiquement dès que la connexion est rétablie.
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
