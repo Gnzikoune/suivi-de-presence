@@ -48,7 +48,26 @@ export default function RootLayout({
         </AuthGate>
         <Toaster richColors position="top-right" />
         <Analytics />
+        <SWRegistration />
       </body>
     </html>
   )
+}
+
+function SWRegistration() {
+  const isClient = typeof window !== 'undefined'
+  
+  if (isClient && 'serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').then(
+        (registration) => {
+          console.log('SW registered: ', registration)
+        },
+        (err) => {
+          console.log('SW registration failed: ', err)
+        }
+      )
+    })
+  }
+  return null
 }
