@@ -30,7 +30,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr" suppressHydrationWarning>
-      <body className={`${outfit.variable} font-sans antialiased text-sm-fluid md:text-base`}>
+      <body className={`${outfit.variable} font-sans antialiased text-sm-fluid md:text-base`} suppressHydrationWarning>
         <AuthGate>
           {children}
         </AuthGate>

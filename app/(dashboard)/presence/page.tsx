@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback, useEffect, Fragment } from "react"
+import { useState, useMemo, useCallback, useEffect, Fragment, useRef } from "react"
 import useSWR, { mutate } from "swr"
 import { toast } from "sonner"
 import { format, isWeekend, parseISO } from "date-fns"
@@ -14,6 +14,7 @@ import {
   XCircle,
   Sun,
   Moon,
+  TrendingUp,
 } from "lucide-react"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
@@ -54,9 +55,18 @@ export default function PresencePage() {
   const [presenceMap, setPresenceMap] = useState<Map<string, boolean>>(new Map())
   const [search, setSearch] = useState("")
   const [saving, setSaving] = useState(false)
+  const [rapidMode, setRapidMode] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   const dateStr = format(selectedDate, "yyyy-MM-dd")
   const isWeekendDay = isWeekend(selectedDate)
+
+  // Auto-focus search in rapid mode
+  useEffect(() => {
+    if (rapidMode && searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }, [rapidMode])
 
   // Load existing attendance when date/class/records change
   useEffect(() => {
@@ -105,6 +115,11 @@ export default function PresencePage() {
         next.delete(studentId)
       } else {
         next.set(studentId, true)
+        // In rapid mode, if we mark someone present, we clear search and re-focus
+        if (rapidMode) {
+          setSearch("")
+          setTimeout(() => searchInputRef.current?.focus(), 10)
+        }
       }
       return next
     })
@@ -258,7 +273,19 @@ export default function PresencePage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Status Badge */}
+            <Button
+              variant={rapidMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => setRapidMode(!rapidMode)}
+              className={cn(
+                "gap-2 transition-all",
+                rapidMode && "bg-amber-500 hover:bg-amber-600 text-white border-none shadow-lg shadow-amber-500/20"
+              )}
+            >
+              <TrendingUp className={cn("size-4", rapidMode && "animate-pulse")} />
+              <span className="text-xs font-bold uppercase tracking-wider">Mode Rapide</span>
+            </Button>
+            
             {alreadySaved ? (
               <Badge
                 variant="outline"
@@ -317,6 +344,7 @@ export default function PresencePage() {
               <div className="relative w-full sm:max-w-xs">
                 <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  ref={searchInputRef}
                   placeholder="Rechercher..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}

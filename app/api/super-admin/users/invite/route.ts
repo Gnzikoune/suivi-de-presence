@@ -18,7 +18,7 @@ export async function POST(req: Request) {
       .eq("id", user.id)
       .single()
 
-    if (adminProfile?.role !== 'super_admin') {
+    if (!adminProfile || !['super_admin', 'campus_manager'].includes(adminProfile.role)) {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
     }
 
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
         formation_label: formationLabel,
         needs_password_update: true
       },
-      redirectTo: `${req.headers.get('origin')}/`
+      redirectTo: `${req.headers.get('origin') || 'https://suivi-de-presence.vercel.app'}/`
     })
 
     if (inviteError) {
@@ -62,7 +62,8 @@ export async function POST(req: Request) {
     const newUser = inviteData.user
 
     // 4. Ensure the profile is set with the correct role and formation
-    const { error: profileError } = await adminClient
+    // Using regular client — Admins have 'ALL' policy on profiles in SQL script
+    const { error: profileError } = await supabase
       .from("profiles")
       .upsert({
         id: newUser.id,
