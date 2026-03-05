@@ -306,10 +306,29 @@ export default function DocumentationPage() {
               </AccordionItem>
             </Accordion>
           </TabsContent>
-        </Tabs>
+          </Tabs>
+
+          {/* Author Footer */}
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="mt-12 pt-8 border-t border-border/50 flex flex-col items-center gap-2"
+          >
+            <p className="text-sm text-muted-foreground">Outil conçu et réalisé par</p>
+            <a 
+              href="https://www.linkedin.com/in/gildas-nzikoune" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="group flex items-center gap-2 px-4 py-2 rounded-full bg-primary/5 border border-primary/10 hover:bg-primary/10 transition-all"
+            >
+              <span className="font-bold text-primary">Gildas NZIKOUNÉ</span>
+              <ArrowRightCircle className="size-4 text-primary transition-transform group-hover:translate-x-1" />
+            </a>
+          </motion.div>
+        </div>
       </div>
-    </div>
-  )
+    )
 }
 
 function ModuleSection({ icon: Icon, title, content, color, bgColor }: { 

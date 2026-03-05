@@ -146,7 +146,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen w-full flex bg-background overflow-hidden">
+    <div className="h-screen w-full flex bg-background overflow-hidden relative">
       {/* Left Side: Decorative Image */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-primary items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0 opacity-60">
@@ -169,10 +169,10 @@ export default function LoginPage() {
             <div className="bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/20 inline-block mb-6">
               <Image src="/Logo.png" alt="Logo" width={48} height={48} className="invert brightness-0" />
             </div>
-            <h1 className="text-5xl font-black tracking-tighter mb-4 leading-none">
+            <h1 className="text-5xl font-black tracking-tighter mb-2 leading-none">
               MAÎTRISEZ VOTRE <span className="text-primary-foreground/80">PRÉSENCE.</span>
             </h1>
-            <p className="text-xl text-white/80 font-medium leading-relaxed mb-8">
+            <p className="text-lg text-white/80 font-medium leading-relaxed mb-6">
               L'outil de gestion d'assiduité nouvelle génération pour les formateurs et les organisations modernes.
             </p>
             
@@ -219,15 +219,15 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="mb-4">
-            <h2 className="text-3xl font-black tracking-tight text-foreground mb-2">
+          <div className="mb-3">
+            <h2 className="text-2xl font-black tracking-tight text-foreground mb-1">
               {isForgotPassword 
                 ? "Réinitialiser" 
                 : isSignUp 
                   ? "Créer un espace" 
                   : "Bon retour parmi nous"}
             </h2>
-            <p className="text-muted-foreground font-medium">
+            <p className="text-sm text-muted-foreground font-medium">
               {isForgotPassword
                 ? "Entrez votre email pour recevoir un lien de récupération."
                 : isSignUp 
@@ -247,7 +247,7 @@ export default function LoginPage() {
             }}
             className="w-full"
           >
-            <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsList className="grid w-full grid-cols-2 mb-3">
               <TabsTrigger value="login">Connexion</TabsTrigger>
               <TabsTrigger value="signup">Inscription</TabsTrigger>
             </TabsList>
@@ -505,6 +505,19 @@ export default function LoginPage() {
             </AnimatePresence>
           </Tabs>
           
+          <div className="mt-4 pt-3 border-t border-border/50 text-center">
+            <p className="text-[10px] text-muted-foreground">
+              Développé avec passion par{" "}
+              <a 
+                href="https://www.linkedin.com/in/gildas-nzikoune" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="font-bold text-primary hover:underline"
+              >
+                Gildas NZIKOUNÉ
+              </a>
+            </p>
+          </div>
         </motion.div>
       </div>
     </div>

@@ -60,7 +60,7 @@ export default function UpdatePasswordPage() {
   }
 
   return (
-    <div className="min-h-screen w-full flex bg-background overflow-hidden">
+    <div className="h-screen w-full flex bg-background overflow-hidden">
       {/* Left Side: Decorative Image (Reuse same style as login) */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-primary items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0 opacity-60">
@@ -101,9 +101,9 @@ export default function UpdatePasswordPage() {
           transition={{ duration: 0.4 }}
           className="w-full max-w-md"
         >
-          <div className="mb-4">
-            <h2 className="text-3xl font-black tracking-tight text-foreground mb-2">Nouveau mot de passe</h2>
-            <p className="text-muted-foreground font-medium">
+          <div className="mb-3">
+            <h2 className="text-2xl font-black tracking-tight text-foreground mb-1">Nouveau mot de passe</h2>
+            <p className="text-sm text-muted-foreground font-medium">
               Veuillez saisir votre nouveau mot de passe ci-dessous.
             </p>
           </div>
@@ -170,6 +170,20 @@ export default function UpdatePasswordPage() {
               </CardFooter>
             </form>
           </Card>
+          
+          <div className="mt-4 pt-3 border-t border-border/50 text-center">
+            <p className="text-[10px] text-muted-foreground">
+              Développé avec passion par{" "}
+              <a 
+                href="https://www.linkedin.com/in/gildas-nzikoune" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="font-bold text-primary hover:underline"
+              >
+                Gildas NZIKOUNÉ
+              </a>
+            </p>
+          </div>
         </motion.div>
       </div>
     </div>

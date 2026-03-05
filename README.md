@@ -73,3 +73,7 @@ L'isolation des données est le cœur du projet. Grâce au `user_id` présent su
 ## 📈 Monitoring
 
 L'application intègre **Vercel Analytics** pour suivre les performances et l'engagement des utilisateurs en production.
+
+## 👤 Auteur
+
+- **Gildas NZIKOUNÉ** - [LinkedIn](https://www.linkedin.com/in/gildas-nzikoune)
