@@ -4,14 +4,14 @@ import { NextResponse } from "next/server"
 export async function GET() {
   const supabase = await createClient()
   try {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     // Check permissions
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("role")
-      .eq("id", session.user.id)
+      .eq("id", user.id)
       .maybeSingle()
 
     if (profileError || !profile || profile.role !== 'super_admin') {
