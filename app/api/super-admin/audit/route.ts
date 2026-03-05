@@ -22,7 +22,7 @@ export async function GET() {
       .from("audit_log")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(50)
+      .limit(100)
 
     if (error) throw error
 

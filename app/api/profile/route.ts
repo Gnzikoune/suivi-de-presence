@@ -40,6 +40,8 @@ export async function GET() {
         console.error("Profile creation error:", createError)
       } else {
         profile = newProfile
+        // Log the creation
+        await logAudit(user.id, 'SIGNUP', `Création du compte via inscription`, 'profile', user.id)
       }
     } else if (profile) {
       // Profile exists — check for missing data and sync from metadata if needed
