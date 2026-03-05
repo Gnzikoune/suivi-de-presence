@@ -6,18 +6,18 @@ import { logAudit } from "@/lib/audit-service"
 export async function GET() {
   const supabase = await createClient()
   try {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     // Only Super Admin can list users
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("role")
-      .eq("id", session.user.id)
+      .eq("id", user.id)
       .maybeSingle()
 
     if (profileError || !profile || profile.role !== 'super_admin') {
-      console.warn("Unauthorized user list attempt:", session.user.id, profileError)
+      console.warn("Unauthorized user list attempt:", user.id, profileError)
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
     }
 
@@ -39,14 +39,14 @@ export async function GET() {
 export async function PATCH(req: Request) {
   const supabase = await createClient()
   try {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     // Check permissions
     const { data: adminProfile, error: adminError } = await supabase
       .from("profiles")
       .select("role")
-      .eq("id", session.user.id)
+      .eq("id", user.id)
       .maybeSingle()
 
     if (adminError || !adminProfile || adminProfile.role !== 'super_admin') {
@@ -67,7 +67,7 @@ export async function PATCH(req: Request) {
 
     // Log the change
     await logAudit(
-      session.user.id, 
+      user.id, 
       'CHANGE_ROLE', 
       `Changement de rôle pour ${data.full_name || data.email} -> ${role}`,
       'profile',
@@ -80,18 +80,19 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }
+
 // DELETE: Delete a user
 export async function DELETE(req: Request) {
   const supabase = await createClient()
   try {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     // Check permissions
     const { data: adminProfile } = await supabase
       .from("profiles")
       .select("role")
-      .eq("id", session.user.id)
+      .eq("id", user.id)
       .maybeSingle()
 
     if (adminProfile?.role !== 'super_admin') {
@@ -102,21 +103,24 @@ export async function DELETE(req: Request) {
     const userId = searchParams.get("id")
     if (!userId) return NextResponse.json({ error: "User ID required" }, { status: 400 })
 
-    // Use Admin Client to delete the user from Auth (this usually cascades to profiles if set up, 
-    // but we'll also delete the profile manually to be sure about "base de données suit")
-    const { data: userToDelete } = await supabase.from("profiles").select("full_name, email").eq("id", userId).single()
+    // Fetch user info for audit before deletion
+    const { data: userToDelete } = await supabase
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", userId)
+      .single()
     
     const adminClient = await createAdminClient()
     const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId)
 
     if (deleteError) throw deleteError
 
-    // Ensure profile is gone (Supabase usually handles this via Auth cascade, but let's be explicit)
+    // Ensure profile is gone
     await supabase.from("profiles").delete().eq("id", userId)
 
     // Log the deletion
     await logAudit(
-      session.user.id, 
+      user.id, 
       'DELETE_USER', 
       `Suppression de l'utilisateur: ${userToDelete?.full_name || userToDelete?.email || userId}`,
       'profile',
