@@ -45,7 +45,7 @@ export function AuthGate({ children }: AuthGateProps) {
         
         // Handle post-auth events
         if (event === 'SIGNED_IN' && pathname === '/login') {
-          router.push('/')
+          router.push('/dashboard')
           router.refresh()
         }
         if (event === 'SIGNED_OUT' && pathname !== '/login') {
@@ -66,7 +66,7 @@ export function AuthGate({ children }: AuthGateProps) {
   useEffect(() => {
     if (checking) return
 
-    const isPublicPath = pathname === "/login" || pathname === "/update-password"
+    const isPublicPath = pathname === "/" || pathname === "/login" || pathname === "/update-password" || pathname === "/documentation"
     
     if (!session && !isPublicPath) {
       // Check for auth parameters (invitation/recovery/PKCE)
@@ -82,8 +82,8 @@ export function AuthGate({ children }: AuthGateProps) {
       }
     }
 
-    if (session && pathname === "/login") {
-      router.push("/")
+    if (session && (pathname === "/login" || pathname === "/")) {
+      router.push("/dashboard")
     }
   }, [session, checking, pathname, router])
 
@@ -95,8 +95,8 @@ export function AuthGate({ children }: AuthGateProps) {
     )
   }
 
-  // If we're on login or update-password page, just show it
-  if (pathname === "/login" || pathname === "/update-password") {
+  // If we're on a public page, just show it
+  if (pathname === "/" || pathname === "/login" || pathname === "/update-password" || pathname === "/documentation") {
     return <>{children}</>
   }
 
