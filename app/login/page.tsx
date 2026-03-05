@@ -507,7 +507,7 @@ export default function LoginPage() {
           
           <div className="mt-4 pt-3 border-t border-border/50 text-center">
             <p className="text-[10px] text-muted-foreground">
-              Développé avec passion par{" "}
+              Développé par{" "}
               <a 
                 href="https://wa.me/241077305184" 
                 target="_blank" 

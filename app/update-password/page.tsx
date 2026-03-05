@@ -173,7 +173,7 @@ export default function UpdatePasswordPage() {
           
           <div className="mt-4 pt-3 border-t border-border/50 text-center">
             <p className="text-[10px] text-muted-foreground">
-              Développé avec passion par{" "}
+              Développé avec par{" "}
               <a 
                 href="https://wa.me/241077305184" 
                 target="_blank" 

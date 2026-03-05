@@ -35,11 +35,10 @@ import { fetchSettings, saveSetting, fetchProfile } from "@/lib/api-service"
 import { useEffect, useState } from "react"
 
 const baseNavItems = [
-  { label: "Tableau de bord", href: "/", icon: LayoutDashboard },
+  { label: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard },
   { label: "Presence", href: "/presence", icon: ClipboardCheck },
   { label: "Apprenants", href: "/apprenants", icon: Users },
   { label: "Statistiques", href: "/statistiques", icon: BarChart3 },
-  { label: "Documentation", href: "/documentation", icon: GraduationCap },
   { label: "Paramètres", href: "/parametres", icon: Database },
 ]
 
@@ -69,7 +68,7 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="px-3 py-4">
-        <Link href="/" className="flex items-center gap-2" onClick={handleLinkClick}>
+        <Link href="/dashboard" className="flex items-center gap-2" onClick={handleLinkClick}>
           <div className="flex shrink-0 items-center justify-center rounded-lg overflow-hidden bg-background p-1 border border-border group-data-[collapsible=icon]:size-8">
             <NextImage
               src="/Logo.png"
