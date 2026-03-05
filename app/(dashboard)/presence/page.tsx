@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback, useEffect } from "react"
+import { useState, useMemo, useCallback, useEffect, Fragment } from "react"
 import useSWR, { mutate } from "swr"
 import { toast } from "sonner"
 import { format, isWeekend, parseISO } from "date-fns"
@@ -35,7 +35,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { fetchStudents, fetchRecords, saveAttendance } from "@/lib/api-service"
+import { fetchStudents, fetchRecords, saveAttendance, fetchProfile, fetchSettings } from "@/lib/api-service"
 import { useSyncQueue } from "@/hooks/use-sync-queue"
 import type { Student, ClassId, AttendanceRecord } from "@/lib/types"
 import { FORMATION_START, FORMATION_END } from "@/lib/constants"
@@ -45,11 +45,13 @@ import { Wifi, WifiOff, RefreshCw } from "lucide-react"
 export default function PresencePage() {
   const { data: students = [] } = useSWR("students", fetchStudents)
   const { data: records = [] } = useSWR("records", fetchRecords)
+  const { data: profile } = useSWR("profile", fetchProfile)
+  const { data: settings } = useSWR("settings", fetchSettings)
   const { isOnline, queue, addToQueue, isSyncing, sync } = useSyncQueue()
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [selectedClass, setSelectedClass] = useState<ClassId>("morning")
-  const [presenceMap, setPresenceMap] = useState<Map<string, string>>(new Map())
+  const [presenceMap, setPresenceMap] = useState<Map<string, boolean>>(new Map())
   const [search, setSearch] = useState("")
   const [saving, setSaving] = useState(false)
 
@@ -62,10 +64,10 @@ export default function PresencePage() {
       (r) => r.date === dateStr && r.classId === selectedClass
     )
     if (existing.length > 0) {
-      const map = new Map<string, string>()
+      const map = new Map<string, boolean>()
       existing.forEach((r) => {
         if (r.present) {
-          map.set(r.studentId, r.arrivalTime || format(new Date(), "HH:mm"))
+          map.set(r.studentId, true)
         }
       })
       setPresenceMap(map)
@@ -102,16 +104,15 @@ export default function PresencePage() {
       if (next.has(studentId)) {
         next.delete(studentId)
       } else {
-        next.set(studentId, format(new Date(), "HH:mm"))
+        next.set(studentId, true)
       }
       return next
     })
   }
 
   const selectAll = () => {
-    const time = format(new Date(), "HH:mm")
-    const map = new Map<string, string>()
-    classStudents.forEach(s => map.set(s.id, time))
+    const map = new Map<string, boolean>()
+    classStudents.forEach(s => map.set(s.id, true))
     setPresenceMap(map)
   }
 
@@ -125,9 +126,8 @@ export default function PresencePage() {
       return
     }
     
-    const presentStudentsData = Array.from(presenceMap.entries()).map(([studentId, arrivalTime]) => ({
-      studentId,
-      arrivalTime
+    const presentStudentsData = Array.from(presenceMap.keys()).map(studentId => ({
+      studentId
     }))
 
     if (!isOnline) {
@@ -157,7 +157,7 @@ export default function PresencePage() {
     <div className="flex flex-col">
       <PageHeader
         title="Prise de Présence"
-        description={`${format(selectedDate, "EEEE dd MMMM yyyy", { locale: fr })}`}
+        description={`${profile?.formation_label || profile?.formation || "Formation"} - ${format(selectedDate, "EEEE dd MMMM yyyy", { locale: fr })}`}
       >
         <div className="flex items-center gap-2">
           {queue.length > 0 && (
@@ -332,8 +332,7 @@ export default function PresencePage() {
                   <TableRow>
                     <TableHead className="w-10 px-2 sm:px-4">Prés.</TableHead>
                     <TableHead className="px-2 sm:px-4 text-xs sm:text-sm">Apprenant</TableHead>
-                    <TableHead className="hidden md:table-cell px-2 sm:px-4">Prénom</TableHead>
-                    <TableHead className="px-2 sm:px-4 text-xs sm:text-sm text-center">Arrivée</TableHead>
+                    <TableHead className="hidden md:table-cell px-2 sm:px-4 text-center">Prénom</TableHead>
                     <TableHead className="w-20 text-center px-2 sm:px-4 text-xs sm:text-sm">Statut</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -352,7 +351,6 @@ export default function PresencePage() {
                   ) : (
                     filteredStudents.map((student) => {
                       const isPresent = presenceMap.has(student.id)
-                      const arrivalTime = presenceMap.get(student.id)
                       
                       return (
                         <TableRow
@@ -383,17 +381,8 @@ export default function PresencePage() {
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell className="hidden md:table-cell px-2 sm:px-4">
+                          <TableCell className="hidden md:table-cell px-2 sm:px-4 text-center">
                             {student.firstName}
-                          </TableCell>
-                          <TableCell className="px-2 sm:px-4 text-center">
-                            {isPresent ? (
-                              <span className="text-xs font-mono font-medium text-success dark:text-success/90 bg-success/10 px-2 py-0.5 rounded border border-success/20">
-                                {arrivalTime}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-muted-foreground/50">--:--</span>
-                            )}
                           </TableCell>
                           <TableCell className="text-center px-2 sm:px-4">
                             {isPresent ? (

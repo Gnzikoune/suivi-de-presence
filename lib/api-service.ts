@@ -13,7 +13,7 @@ export async function fetchRecords(): Promise<AttendanceRecord[]> {
 }
 
 export async function addStudent(firstName: string, lastName: string, classId: ClassId): Promise<Student> {
-  const res = await fetch("/api/students", {
+  const res = await fetch("/api/students", { 
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ firstName, lastName, classId }),
@@ -42,7 +42,7 @@ export async function deleteStudent(id: string): Promise<void> {
 export async function saveAttendance(
   date: string, 
   classId: ClassId, 
-  presentStudentsData: { studentId: string, arrivalTime: string }[]
+  presentStudentsData: { studentId: string }[]
 ): Promise<void> {
   const res = await fetch("/api/records", {
     method: "POST",
@@ -79,5 +79,32 @@ export async function saveSetting(key: string, value: string, description?: stri
     body: JSON.stringify({ key, value, description })
   })
   if (!res.ok) throw new Error("Failed to save setting")
+  return res.json()
+}
+export async function fetchProfile(): Promise<{ 
+  id: string, 
+  role: string, 
+  full_name: string, 
+  email?: string,
+  formation?: string,
+  orga_name?: string,
+  formation_label?: string
+}> {
+  const res = await fetch("/api/profile")
+  if (!res.ok) throw new Error("Failed to fetch profile")
+  return res.json()
+}
+
+export async function updateProfile(data: { 
+  full_name?: string, 
+  formation?: string, 
+  orga_name?: string 
+}): Promise<any> {
+  const res = await fetch("/api/profile", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) throw new Error("Failed to update profile")
   return res.json()
 }
