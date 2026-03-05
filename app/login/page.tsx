@@ -88,6 +88,10 @@ export default function LoginPage() {
 
     try {
       if (isSignUp) {
+        const selectedFormation = Array.isArray(formations) 
+          ? formations.find((f: any) => f.value === formationName)
+          : null
+
         const { data, error: authError } = await supabase.auth.signUp({
           email,
           password,
@@ -96,7 +100,7 @@ export default function LoginPage() {
               full_name: fullName,
               role: selectedRole,
               formation: formationName,
-              formation_name: formationName,
+              formation_label: selectedFormation?.label || "",
               orga_name: orgaName,
             }
           }

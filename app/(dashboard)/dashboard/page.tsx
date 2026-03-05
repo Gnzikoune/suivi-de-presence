@@ -12,6 +12,7 @@ import {
   ClipboardCheck,
   ArrowRight,
   UserCheck,
+  Megaphone
 } from "lucide-react"
 import {
   Bar,
@@ -38,11 +39,31 @@ import { StatsSkeleton } from "@/components/stats-skeleton"
 import type { Student, AttendanceRecord } from "@/lib/types"
 import { FORMATION_START, FORMATION_END } from "@/lib/constants"
 
+const fetcher = async (url: string) => {
+  const res = await fetch(url)
+  if (!res.ok) {
+    const error = new Error('An error occurred while fetching the data.')
+    const info = await res.json()
+    ;(error as any).info = info
+    ;(error as any).status = res.status
+    throw error
+  }
+  return res.json()
+}
+
 export default function DashboardPage() {
   const { data: students, isLoading: isLoadingStudents } = useSWR("students", fetchStudents)
   const { data: records, isLoading: isLoadingRecords } = useSWR("records", fetchRecords)
   const { data: settings } = useSWR("settings", fetchSettings)
   const { data: profile } = useSWR("profile", fetchProfile)
+  const { data: allAnnouncements } = useSWR(profile ? "/api/super-admin/announcements" : null, fetcher)
+
+  const announcements = useMemo(() => {
+    if (!allAnnouncements || !profile) return []
+    return allAnnouncements.filter((a: any) => 
+      a.target_role === 'all' || a.target_role === profile.role
+    )
+  }, [allAnnouncements, profile])
 
   const isLoading = isLoadingStudents || isLoadingRecords
 
@@ -109,6 +130,33 @@ export default function DashboardPage() {
       />
 
       <div className="flex flex-col gap-6 p-4 md:p-6 pb-20 max-w-5xl mx-auto w-full">
+        {/* Announcements Section */}
+        {announcements && announcements.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-primary font-bold">
+              <Megaphone className="size-5" />
+              <h3>Annonces de l'administration</h3>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              {announcements.map((a: any) => (
+                <Card key={a.id} className="border-primary/20 bg-primary/5 shadow-sm overflow-hidden relative group">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
+                  <CardHeader className="py-4">
+                    <CardTitle className="text-sm flex items-center justify-between">
+                      <span>{a.title}</span>
+                      <span className="text-[10px] font-normal text-muted-foreground">{new Date(a.created_at).toLocaleDateString()}</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pb-4">
+                    <p className="text-sm text-foreground/80 whitespace-pre-wrap">{a.message}</p>
+                    <p className="text-[10px] text-muted-foreground mt-2">— {a.author_name}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           {isLoading ? (

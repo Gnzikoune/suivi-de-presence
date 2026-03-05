@@ -8,9 +8,11 @@ import {
   BarChart3, 
   ShieldCheck, 
   Plus, 
-  Trash2,
   TrendingUp,
-  RefreshCcw
+  RefreshCcw,
+  Megaphone,
+  MessageSquare,
+  Trash2
 } from "lucide-react"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -41,6 +43,7 @@ export default function SuperAdminPage() {
   const { data: formations, mutate: mutateFormations } = useSWR("/api/super-admin/formations", fetcher)
   const { data: users, error: usersError, mutate: mutateUsers } = useSWR("/api/super-admin/users", fetcher)
   const { data: auditLogs, mutate: mutateAudit } = useSWR("/api/super-admin/audit", fetcher)
+  const { data: announcements, mutate: mutateAnnouncements } = useSWR("/api/super-admin/announcements", fetcher)
   
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null)
   const [isAddingFormation, setIsAddingFormation] = useState(false)
@@ -49,9 +52,11 @@ export default function SuperAdminPage() {
   // Modal visibility states
   const [isFormationModalOpen, setIsFormationModalOpen] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
+  const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false)
 
   // Confirmation Modals State
   const [formationToDelete, setFormationToDelete] = useState<string | null>(null)
+  const [announcementToDelete, setAnnouncementToDelete] = useState<string | null>(null)
   const [userToDelete, setUserToDelete] = useState<{ id: string, name: string } | null>(null)
   const [userToUpdate, setUserToUpdate] = useState<{ id: string, role: string } | null>(null)
   const [isActionPending, setIsActionPending] = useState(false)
@@ -161,6 +166,51 @@ export default function SuperAdminPage() {
     }
   }
 
+  const handleCreateAnnouncement = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const formData = new FormData(e.currentTarget)
+    const data = {
+      title: formData.get("title") as string,
+      message: formData.get("message") as string,
+      target_role: formData.get("target_role") as string
+    }
+
+    setIsActionPending(true)
+    try {
+      const res = await fetch("/api/super-admin/announcements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      })
+      if (!res.ok) throw new Error()
+      toast.success("Annonce publiée !")
+      mutateAnnouncements()
+      mutateAudit()
+      setIsAnnouncementModalOpen(false)
+    } catch (err) {
+      toast.error("Erreur lors de la publication")
+    } finally {
+      setIsActionPending(false)
+    }
+  }
+
+  const handleDeleteAnnouncement = async () => {
+    if (!announcementToDelete) return
+    setIsActionPending(true)
+    try {
+      const res = await fetch(`/api/super-admin/announcements?id=${announcementToDelete}`, { method: "DELETE" })
+      if (!res.ok) throw new Error()
+      toast.success("Annonce supprimée")
+      mutateAnnouncements()
+      mutateAudit()
+      setAnnouncementToDelete(null)
+    } catch (err) {
+      toast.error("Erreur lors de la suppression")
+    } finally {
+      setIsActionPending(false)
+    }
+  }
+
   const getRoleBadge = (role: string) => {
     switch (role) {
       case 'super_admin': return <Badge className="bg-primary text-white font-black uppercase tracking-tight">Super Admin</Badge>
@@ -180,6 +230,7 @@ export default function SuperAdminPage() {
           mutateFormations()
           mutateUsers()
           mutateAudit()
+          mutateAnnouncements()
         }} className="gap-2">
           <RefreshCcw className="size-4" />
           <span>Actualiser</span>
@@ -259,6 +310,10 @@ export default function SuperAdminPage() {
             <TabsTrigger value="audit" className="gap-2 px-4">
               <BarChart3 className="size-4" />
               <span>Journal d'audit</span>
+            </TabsTrigger>
+            <TabsTrigger value="announcements" className="gap-2 px-4">
+              <Megaphone className="size-4" />
+              <span>Annonces</span>
             </TabsTrigger>
           </TabsList>
 
@@ -354,6 +409,7 @@ export default function SuperAdminPage() {
                         <thead className="bg-muted/50 border-b">
                           <tr>
                             <th className="px-4 py-3 text-left font-semibold">Utilisateur</th>
+                            <th className="px-4 py-3 text-left font-semibold">Formation</th>
                             <th className="px-4 py-3 text-left font-semibold">Rôle Actuel</th>
                             <th className="px-4 py-3 text-right font-semibold">Changer le rôle</th>
                           </tr>
@@ -361,14 +417,14 @@ export default function SuperAdminPage() {
                         <tbody className="divide-y">
                           {usersError && (
                             <tr>
-                              <td colSpan={3} className="px-4 py-8 text-center text-destructive bg-destructive/5 font-medium">
+                              <td colSpan={4} className="px-4 py-8 text-center text-destructive bg-destructive/5 font-medium">
                                 {usersError.info?.error || "Impossible de charger les utilisateurs"}
                               </td>
                             </tr>
                           )}
                           {!users && !usersError && (
                             <tr>
-                              <td colSpan={3} className="px-4 py-8 text-center text-muted-foreground animate-pulse">
+                              <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground animate-pulse">
                                 Chargement des membres de l'équipe...
                               </td>
                             </tr>
@@ -377,9 +433,21 @@ export default function SuperAdminPage() {
                             <tr key={u.id} className="hover:bg-muted/30 transition-colors">
                               <td className="px-4 py-4">
                                 <div className="flex flex-col">
-                                  <span className="font-bold">{u.full_name || "Sans nom"}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold">{u.full_name || "Sans nom"}</span>
+                                    {u.role === 'super_admin' && u.formation && (
+                                      <Badge variant="outline" className="text-[9px] h-4 px-1 bg-warning/10 text-warning border-warning/20">Coach</Badge>
+                                    )}
+                                  </div>
                                   <span className="text-xs text-muted-foreground">{u.email}</span>
                                 </div>
+                              </td>
+                              <td className="px-4 py-4">
+                                {u.formation_label ? (
+                                  <Badge variant="secondary" className="font-normal text-[10px]">{u.formation_label}</Badge>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground italic">Aucune</span>
+                                )}
                               </td>
                               <td className="px-4 py-4">
                                 {getRoleBadge(u.role)}
@@ -468,6 +536,86 @@ export default function SuperAdminPage() {
                 </Card>
               </motion.div>
             </TabsContent>
+
+            <TabsContent value="announcements" className="mt-6 border-none p-0 outline-none">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+              >
+                <Card className="lg:col-span-1 shadow-sm h-fit">
+                  <CardHeader>
+                    <CardTitle>Nouvelle Annonce</CardTitle>
+                    <CardDescription>Publiez un message important.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={handleCreateAnnouncement} className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold">Titre</label>
+                        <input name="title" required className="w-full text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-primary/20" placeholder="Ex: Maintenance prévue" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold">Message</label>
+                        <textarea name="message" required className="w-full text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-primary/20 min-h-[100px]" placeholder="Détails de l'annonce..." />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold">Cible</label>
+                        <select name="target_role" className="w-full text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-primary/20">
+                          <option value="all">Tout le monde</option>
+                          <option value="coach">Coachs uniquement</option>
+                          <option value="campus_manager">Campus Managers uniquement</option>
+                        </select>
+                      </div>
+                      <Button type="submit" className="w-full gap-2 font-bold" disabled={isActionPending}>
+                        {isActionPending ? <RefreshCcw className="size-4 animate-spin" /> : <Megaphone className="size-4" />}
+                        <span>Publier</span>
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                <Card className="lg:col-span-2 shadow-sm">
+                  <CardHeader>
+                    <CardTitle>Annonces Actives</CardTitle>
+                    <CardDescription>Messages actuellement visibles par l'équipe.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {Array.isArray(announcements) && announcements.map((a: any) => (
+                        <div key={a.id} className="p-4 rounded-xl border bg-card hover:border-primary/20 transition-all relative group">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-bold text-sm tracking-tight">{a.title}</h4>
+                            <Badge variant="outline" className="text-[9px] uppercase">{a.target_role === 'all' ? 'Tous' : a.target_role}</Badge>
+                          </div>
+                          <p className="text-sm text-foreground/80 mb-3 whitespace-pre-wrap">{a.message}</p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-muted-foreground">Par {a.author_name} • {new Date(a.created_at).toLocaleDateString()}</span>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => setAnnouncementToDelete(a.id)}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      {Array.isArray(announcements) && announcements.length === 0 && (
+                        <div className="py-20 text-center text-muted-foreground italic border-2 border-dashed rounded-xl">
+                          Aucune annonce publiée.
+                        </div>
+                      )}
+                      {!announcements && (
+                        <div className="py-20 text-center text-muted-foreground animate-pulse border-2 border-dashed rounded-xl">
+                          Chargement des annonces...
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </TabsContent>
           </AnimatePresence>
         </Tabs>
       </div>
@@ -507,6 +655,15 @@ export default function SuperAdminPage() {
         onOpenChange={setIsFormationModalOpen}
         onSubmit={handleAddFormation}
         loading={isAddingFormation}
+      />
+
+      <ConfirmModal 
+        open={!!announcementToDelete}
+        onOpenChange={(open) => !open && setAnnouncementToDelete(null)}
+        onConfirm={handleDeleteAnnouncement}
+        loading={isActionPending}
+        title="Supprimer l'annonce"
+        description="Cette annonce ne sera plus visible par les membres de l'équipe."
       />
 
       <InviteUserForm 

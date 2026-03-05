@@ -36,10 +36,10 @@ export async function GET() {
     // 3. User distribution
     const { data: users } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, formation")
 
     const rolesCount = {
-      coach: users?.filter(u => u.role === 'coach').length || 0,
+      coach: users?.filter(u => u.role === 'coach' || (u.role === 'super_admin' && u.formation)).length || 0,
       campus_manager: users?.filter(u => u.role === 'campus_manager').length || 0,
       super_admin: users?.filter(u => u.role === 'super_admin').length || 0,
     }
