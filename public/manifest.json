@@ -1,7 +1,7 @@
 {
   "name": "Suivi de Présence",
   "short_name": "Suivi Présence",
-  "description": "Outil de suivi de présence pour la formation en marketing digital.",
+  "description": "Outil de suivi de présence pour la formation.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

@@ -9,9 +9,9 @@ import "./globals.css"
 const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" })
 
 export const metadata: Metadata = {
-  title: "Suivi de Presence - Marketing Digital",
+  title: "Suivi de Presence ",
   description:
-    "Outil de suivi de presence pour la formation en marketing digital. Gerez les apprenants, prenez la presence et analysez les statistiques.",
+    "Outil de suivi de presence pour la formation. Gerez les apprenants, prenez la presence et analysez les statistiques.",
   icons: {
     icon: "/icon.ico",
     apple: "/Logo.png",
