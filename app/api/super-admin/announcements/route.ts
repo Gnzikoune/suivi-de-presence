@@ -44,26 +44,21 @@ export async function POST(req: Request) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    // Only Super Admin can post announcements
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role, full_name")
-      .eq("id", user.id)
-      .single()
-
-    if (profile?.role !== 'super_admin') {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
-
     const { title, message, target_role } = await req.json()
     if (!title || !message) return NextResponse.json({ error: "Title and message required" }, { status: 400 })
 
-    const adminClient = await createAdminClient()
-    const { data, error } = await adminClient
+    // Fetch profile for author_name (RLS allows reading own profile)
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .single()
+
+    const { data, error } = await supabase
       .from("announcements")
       .insert({
         author_id: user.id,
-        author_name: profile.full_name || "Admin",
+        author_name: profile?.full_name || "Admin",
         title,
         message,
         target_role: target_role || 'all'
@@ -104,16 +99,14 @@ export async function DELETE(req: Request) {
     const id = searchParams.get("id")
     if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-    const adminClient = await createAdminClient()
-    
     // Fetch title for audit before deletion
-    const { data: announcement } = await adminClient
+    const { data: announcement } = await supabase
       .from("announcements")
       .select("title")
       .eq("id", id)
       .single()
 
-    const { error } = await adminClient
+    const { error } = await supabase
       .from("announcements")
       .delete()
       .eq("id", id)
