@@ -76,7 +76,8 @@ export function StudentForm({
               : "Remplissez les informations du nouvel apprenant."}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-6 pt-2">
+          {/* ... fields ... */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="lastName">Nom</Label>
             <Input
@@ -114,7 +115,7 @@ export function StudentForm({
               </SelectContent>
             </Select>
           </div>
-          <DialogFooter>
+          <DialogFooter className="pt-2">
             <Button
               type="button"
               variant="outline"

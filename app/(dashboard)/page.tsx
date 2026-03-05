@@ -3,7 +3,7 @@
 import { useMemo } from "react"
 import useSWR from "swr"
 import Link from "next/link"
-import { format } from "date-fns"
+import { format, parseISO } from "date-fns"
 import { fr } from "date-fns/locale"
 import {
   Users,
@@ -29,7 +29,7 @@ import { PageHeader } from "@/components/page-header"
 import { StatsCard } from "@/components/stats-cards"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { fetchStudents, fetchRecords, fetchSettings } from "@/lib/api-service"
+import { fetchStudents, fetchRecords, fetchSettings, fetchProfile } from "@/lib/api-service"
 import {
   getGlobalStats,
   getTodayClassSummary,
@@ -42,6 +42,7 @@ export default function DashboardPage() {
   const { data: students, isLoading: isLoadingStudents } = useSWR("students", fetchStudents)
   const { data: records, isLoading: isLoadingRecords } = useSWR("records", fetchRecords)
   const { data: settings } = useSWR("settings", fetchSettings)
+  const { data: profile } = useSWR("profile", fetchProfile)
 
   const isLoading = isLoadingStudents || isLoadingRecords
 
@@ -104,7 +105,7 @@ export default function DashboardPage() {
     <div className="flex flex-col">
       <PageHeader
         title="Tableau de bord"
-        description={`Formation Marketing Digital - ${format(new Date(), "dd MMMM yyyy", { locale: fr })}`}
+        description={`${profile?.formation_label || profile?.formation || "Formation Marketing Digital"} - ${format(new Date(), "dd MMMM yyyy", { locale: fr })}`}
       />
 
       <div className="flex flex-col gap-6 p-4 md:p-6 pb-20 max-w-5xl mx-auto w-full">
@@ -141,9 +142,9 @@ export default function DashboardPage() {
                 iconClassName="bg-destructive/10 text-destructive"
               />
               <StatsCard
-                title="Jours Ecoules"
+                title="Jours Écoulés"
                 value={`${globalStats.elapsedDays} / ${globalStats.totalDays}`}
-                subtitle={`Du 16/02 au 30/08/2026`}
+                subtitle={`Du ${format(parseISO(formStart), "dd/MM")} au ${format(parseISO(formEnd), "dd/MM/yyyy")}`}
                 icon={CalendarDays}
                 iconClassName="bg-chart-5/10 text-chart-5"
               />
@@ -211,7 +212,7 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={180} className="md:h-[260px]">
-                  <LineChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                  <LineChart data={chartData} margin={{ top: 5, right: 5, left: -15, bottom: 0 }}>
                     <CartesianGrid
                       strokeDasharray="3 3"
                       className="stroke-border"
@@ -283,7 +284,7 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={200} className="md:h-[280px]">
-                  <BarChart data={comparisonData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <BarChart data={comparisonData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                     <CartesianGrid
                       strokeDasharray="3 3"
                       className="stroke-border"

@@ -49,7 +49,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { fetchStudents, fetchRecords, fetchSettings } from "@/lib/api-service"
+import { fetchStudents, fetchRecords, fetchSettings, fetchProfile } from "@/lib/api-service"
 import {
   getGlobalStats,
   getStudentStats,
@@ -781,6 +781,7 @@ export default function StatistiquesPage() {
     fallbackData: [],
   })
   const { data: settings } = useSWR("settings", fetchSettings)
+  const { data: profile } = useSWR("profile", fetchProfile)
 
   const formStart = settings?.FORMATION_START || FORMATION_START
   const formEnd = settings?.FORMATION_END || FORMATION_END
@@ -789,7 +790,7 @@ export default function StatistiquesPage() {
     <div className="flex flex-col">
       <PageHeader
         title="Statistiques"
-        description="Analysez les taux de presence et d'absenteisme"
+        description={`${profile?.formation_label || profile?.formation || "Formation Marketing Digital"} - Analyse globale de l'assiduité.`}
       />
 
       <div className="flex flex-col gap-6 p-4 md:p-6 pb-20 max-w-5xl mx-auto w-full">
