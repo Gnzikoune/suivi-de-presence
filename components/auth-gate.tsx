@@ -27,13 +27,12 @@ export function AuthGate({ children }: AuthGateProps) {
     const checkSession = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser()
-        if (mounted) {
-          // Note: we can still follow onAuthStateChange for session, 
-          // but getUser() is the secure way for the initial check.
+        if (mounted && user) {
+          // If user exists, we get the current session for the UI state
           const { data: { session: currentSession } } = await supabase.auth.getSession()
           setSession(currentSession)
-          setChecking(false)
         }
+        if (mounted) setChecking(false)
       } catch (err) {
         console.error("Auth session check error:", err)
         if (mounted) setChecking(false)
