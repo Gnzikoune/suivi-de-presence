@@ -1,4 +1,4 @@
-# Suivi de Présence - Marketing Digital
+# Suivi de Présence
 
 Application moderne de suivi de présence développée avec **Next.js**, **Supabase** et **Tailwind CSS**.
 
