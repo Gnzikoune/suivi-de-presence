@@ -1,4 +1,4 @@
-import { createClient } from "./supabase-server"
+import { createClient, createAdminClient } from "./supabase-server"
 
 export async function logAudit(
   actorId: string,
@@ -8,20 +8,29 @@ export async function logAudit(
   targetId?: string
 ) {
   const supabase = await createClient()
+  const adminClient = await createAdminClient()
   
   try {
-    // Get actor info
+    // Get actor info from profile
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name")
+      .select("full_name, email")
       .eq("id", actorId)
-      .single()
+      .maybeSingle()
 
-    const { error } = await supabase
+    let actorName = profile?.full_name
+
+    // If no name found, try to get email from Auth
+    if (!actorName) {
+      const { data: { user: authUser } } = await adminClient.auth.admin.getUserById(actorId)
+      actorName = authUser?.email || profile?.email || "Utilisateur"
+    }
+
+    const { error } = await adminClient
       .from("audit_log")
       .insert({
         actor_id: actorId,
-        actor_name: profile?.full_name || "Système",
+        actor_name: actorName,
         action,
         details: { message: details },
         target_type: targetType,

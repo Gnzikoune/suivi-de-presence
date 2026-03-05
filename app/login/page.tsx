@@ -122,6 +122,17 @@ export default function LoginPage() {
         if (authError) {
           setError(getErrorMessage(authError))
         } else {
+          // Log login event
+          try {
+            await fetch("/api/auth/audit", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ event: 'LOGIN' })
+            })
+          } catch (e) {
+            console.error("Failed to log login event", e)
+          }
+          
           router.push("/")
           router.refresh()
         }

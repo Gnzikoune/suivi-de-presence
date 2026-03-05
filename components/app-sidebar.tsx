@@ -128,6 +128,17 @@ export function AppSidebar() {
             <SidebarMenuButton
               onClick={async () => {
                 const supabase = createClient()
+                // Log logout event before signing out
+                try {
+                  await fetch("/api/auth/audit", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ event: 'LOGOUT' })
+                  })
+                } catch (e) {
+                  console.error("Failed to log logout event", e)
+                }
+                
                 await supabase.auth.signOut()
                 window.location.href = "/login"
               }}
