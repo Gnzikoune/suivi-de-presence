@@ -272,36 +272,89 @@ export default function DocumentationPage() {
 
           <TabsContent value="faq" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             <Accordion type="single" collapsible className="w-full space-y-4">
-              <AccordionItem value="item-1" className="bg-card border rounded-2xl px-6 transition-all hover:border-primary/50 shadow-sm">
-                <AccordionTrigger className="hover:no-underline font-bold py-6 text-left">
-                  Mes données sont-elles vraiment sécurisées ?
+              <AccordionItem value="roles" className="bg-card border rounded-2xl px-6 transition-all hover:border-primary/50 shadow-sm">
+                <AccordionTrigger className="hover:no-underline font-bold py-4 text-left">
+                  Quels sont les différents rôles et leurs permissions ?
                 </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground pb-6 leading-relaxed">
-                  <strong>Oui.</strong> Nous utilisons l'infrastructure Cloud de Supabase certifiée SOC2. 
-                  Chaque donnée est protégée par des politiques **RLS (Row Level Security)**. 
-                  Un Coach ne voit que ses élèves, tandis qu'un Campus Manager possède une visibilité étendue sur son campus.
+                <AccordionContent className="text-muted-foreground pb-6 leading-relaxed space-y-2">
+                  <p>L'application gère trois niveaux d'accès distincts :</p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li><strong>Coach</strong> : Peut gérer ses apprenants, faire l'appel et voir ses propres statistiques.</li>
+                    <li><strong>Campus Manager</strong> : Possède une vue d'ensemble sur toutes les formations de son organisation pour un pilotage global.</li>
+                    <li><strong>Super Admin</strong> : Contrôle total (gestion des utilisateurs, création de formations, audit système).</li>
+                  </ul>
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="item-2" className="bg-card border rounded-2xl px-6 transition-all hover:border-primary/50 shadow-sm">
-                <AccordionTrigger className="hover:no-underline font-bold py-6 text-left">
-                  Que se passe-t-il si je change de téléphone/ordinateur ?
+              <AccordionItem value="security" className="bg-card border rounded-2xl px-6 transition-all hover:border-primary/50 shadow-sm">
+                <AccordionTrigger className="hover:no-underline font-bold py-4 text-left">
+                  Mes données sont-elles vraiment sécurisées et privées ?
                 </AccordionTrigger>
                 <AccordionContent className="text-muted-foreground pb-6 leading-relaxed">
-                  Il vous suffit de vous connecter avec vos identifiants sur le nouvel appareil. 
-                  Toutes vos données (paramètres, élèves, historiques) seront immédiatement synchronisées 
-                  car elles résident sur le Cloud, et non plus uniquement en local.
+                  <strong>Oui, absolument.</strong> Vos données sont stockées sur l'infrastructure Cloud de Supabase, isolées par des politiques de sécurité au niveau des lignes (Row Level Security). Cela signifie qu'un Coach ne peut physiquement pas voir les données d'un autre Coach. Vos listes d'élèves et vos historiques sont strictement confidentiels.
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="item-3" className="bg-card border rounded-2xl px-6 transition-all hover:border-primary/50 shadow-sm">
-                <AccordionTrigger className="hover:no-underline font-bold py-6 text-left">
-                  Les paramètres sont-ils sauvegardés en base de données ?
+              <AccordionItem value="sync" className="bg-card border rounded-2xl px-6 transition-all hover:border-primary/50 shadow-sm">
+                <AccordionTrigger className="hover:no-underline font-bold py-4 text-left">
+                  Que se passe-t-il si je change d'appareil ou travaille en déplacement ?
                 </AccordionTrigger>
                 <AccordionContent className="text-muted-foreground pb-6 leading-relaxed">
-                  <strong>Absolument.</strong> Lorsque vous modifiez le nom de la formation ou les dates dans l'onglet 
-                  Paramètres, une requête <code>UPSERT</code> est envoyée à la table <code>settings</code> de Supabase. 
-                  Cela garantit que votre configuration vous suit partout.
+                  L'application est 100% basée sur le Cloud. Vos données sont synchronisées en temps réel. Si vous changez de téléphone, de tablette ou d'ordinateur, il vous suffit de vous connecter pour retrouver instantanément toute votre configuration, vos élèves et vos pointages.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="offline" className="bg-card border rounded-2xl px-6 transition-all hover:border-primary/50 shadow-sm">
+                <AccordionTrigger className="hover:no-underline font-bold py-4 text-left">
+                  L'application fonctionne-t-elle sans connexion internet ?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground pb-6 leading-relaxed">
+                  Oui, le système dispose d'un mécanisme de cache intelligent. Vous pouvez consulter vos listes même hors-ligne. Pour l'appel (saisie de présence), une connexion est requise pour garantir que les données sont immédiatement sauvegardées et synchronisées pour les audits et rapports.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="export" className="bg-card border rounded-2xl px-6 transition-all hover:border-primary/50 shadow-sm">
+                <AccordionTrigger className="hover:no-underline font-bold py-4 text-left">
+                  Puis-je exporter mes données de présence vers Excel ?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground pb-6 leading-relaxed">
+                  Cette fonctionnalité est native ! Dans l'espace de gestion, vous pouvez générer des rapports et exporter vos listes au format Excel (.xlsx) pour vos besoins administratifs ou pour un archivage externe.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="password" className="bg-card border rounded-2xl px-6 transition-all hover:border-primary/50 shadow-sm">
+                <AccordionTrigger className="hover:no-underline font-bold py-4 text-left">
+                  Comment modifier mon mot de passe ?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground pb-6 leading-relaxed">
+                  Vous pouvez modifier votre mot de passe à tout moment. Si vous avez perdu l'accès, utilisez la fonction "Oublié ?" sur la page de connexion. Pour un changement volontaire, vous pouvez accéder à la page de mise à jour dédiée.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="deletion" className="bg-card border rounded-2xl px-6 transition-all hover:border-primary/50 shadow-sm">
+                <AccordionTrigger className="hover:no-underline font-bold py-4 text-left">
+                  Les suppressions sont-elles définitives ?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground pb-6 leading-relaxed">
+                  <strong>Oui.</strong> Par mesure de sécurité et de conformité, toute suppression d'un apprenant ou d'une formation est immédiate et définitive en base de données. Nous vous recommandons de toujours exporter vos listes importantes avant d'effectuer des nettoyages majeurs.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="mobile" className="bg-card border rounded-2xl px-6 transition-all hover:border-primary/50 shadow-sm">
+                <AccordionTrigger className="hover:no-underline font-bold py-4 text-left">
+                  Existe-t-il une application mobile à télécharger ?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground pb-6 leading-relaxed">
+                  L'application est une <strong>Web App Responsive</strong> performante. Elle ne nécessite pas d'installation via l'App Store. Vous pouvez simplement l'ajouter à l'écran d'accueil de votre smartphone ou tablette pour l'utiliser comme une application native, avec la fluidité et les fonctionnalités complètes.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="contact" className="bg-card border rounded-2xl px-6 transition-all hover:border-primary/50 shadow-sm">
+                <AccordionTrigger className="hover:no-underline font-bold py-4 text-left">
+                  Comment signaler un bug ou demander une nouvelle fonctionnalité ?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground pb-6 leading-relaxed">
+                  L'application est en constante évolution. Vous pouvez contacter directement l'auteur, <strong>Gildas NZIKOUNÉ</strong>, via <strong>WhatsApp</strong> ou LinkedIn pour toute demande de support ou d'amélioration.
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
@@ -315,16 +368,25 @@ export default function DocumentationPage() {
             transition={{ delay: 0.5 }}
             className="mt-12 pt-8 border-t border-border/50 flex flex-col items-center gap-2"
           >
-            <p className="text-sm text-muted-foreground">Outil conçu et réalisé par</p>
-            <a 
-              href="https://www.linkedin.com/in/gildas-nzikoune" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="group flex items-center gap-2 px-4 py-2 rounded-full bg-primary/5 border border-primary/10 hover:bg-primary/10 transition-all"
-            >
-              <span className="font-bold text-primary">Gildas NZIKOUNÉ</span>
-              <ArrowRightCircle className="size-4 text-primary transition-transform group-hover:translate-x-1" />
-            </a>
+            <p className="text-sm text-muted-foreground">Outil conçu et réalisé par Gildas NZIKOUNÉ</p>
+            <div className="flex gap-4">
+              <a 
+                href="https://wa.me/241077305184" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="group flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/5 border border-green-500/10 hover:bg-green-500/10 transition-all"
+              >
+                <span className="font-bold text-green-600">WhatsApp Support</span>
+              </a>
+              <a 
+                href="https://www.linkedin.com/in/gildas-nzikoune" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="group flex items-center gap-2 px-4 py-2 rounded-full bg-primary/5 border border-primary/10 hover:bg-primary/10 transition-all"
+              >
+                <span className="font-bold text-primary">LinkedIn</span>
+              </a>
+            </div>
           </motion.div>
         </div>
       </div>

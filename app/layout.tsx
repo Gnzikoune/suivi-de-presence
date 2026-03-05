@@ -3,6 +3,7 @@ import { Outfit } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "sonner"
 import { AuthGate } from "@/components/auth-gate"
+import { WhatsAppFloat } from "@/components/whatsapp-float"
 import "./globals.css"
 
 const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" })
@@ -36,6 +37,7 @@ export default function RootLayout({
         <Toaster richColors position="top-right" />
         <Analytics />
         <SWRegistration />
+        <WhatsAppFloat />
       </body>
     </html>
   )
