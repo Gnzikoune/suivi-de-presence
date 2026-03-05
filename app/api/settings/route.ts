@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase-server"
 import { NextResponse } from "next/server"
+import { logAudit } from "@/lib/audit-service"
 
 export async function GET() {
   const supabase = await createClient()
@@ -47,6 +48,9 @@ export async function POST(req: Request) {
       .select()
 
     if (error) throw error
+
+    // Log action
+    await logAudit(user.id, 'SAVE_SETTING', `Modification du paramètre: ${key} -> ${value}`, 'settings', key)
 
     return NextResponse.json({ success: true, updated: true })
   } catch (error) {

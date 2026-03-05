@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase-server"
 import { NextResponse } from "next/server"
+import { logAudit } from "@/lib/audit-service"
 
 export async function GET() {
   const supabase = await createClient()
@@ -105,6 +106,9 @@ export async function PATCH(req: Request) {
       .single()
 
     if (error) throw error
+
+    // Log action
+    await logAudit(user.id, 'UPDATE_PROFILE', `Mise à jour du profil par l'utilisateur`, 'profile', user.id)
 
     return NextResponse.json(data)
   } catch (error) {

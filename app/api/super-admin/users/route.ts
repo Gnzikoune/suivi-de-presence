@@ -21,6 +21,7 @@ export async function GET() {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
     }
 
+    // Fetch all users
     const { data: users, error } = await supabase
       .from("profiles")
       .select("*")
@@ -28,7 +29,22 @@ export async function GET() {
 
     if (error) throw error
 
-    return NextResponse.json(users)
+    // Fetch formations to map labels dynamically (fix for missing formation_label)
+    const { data: formations } = await supabase
+      .from("formations")
+      .select("value, label")
+
+    const formationsMap = (formations || []).reduce((acc: any, f) => {
+      acc[f.value] = f.label
+      return acc
+    }, {})
+
+    const usersWithLabels = users.map(u => ({
+      ...u,
+      formation_label: u.formation_label || formationsMap[u.formation] || null
+    }))
+
+    return NextResponse.json(usersWithLabels)
   } catch (error) {
     console.error("Users GET Error:", error)
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })

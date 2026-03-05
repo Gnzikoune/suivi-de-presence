@@ -28,8 +28,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Email et rôle requis" }, { status: 400 })
     }
 
+    // 2b. Fetch formation label if provided
+    let formationLabel = ""
+    if (formation && formation !== 'none') {
+      const { data: fData } = await supabase
+        .from("formations")
+        .select("label")
+        .eq("value", formation)
+        .single()
+      formationLabel = fData?.label || ""
+    }
+
     // 3. Use Admin Client to invite the user
-    // We use the service role key to bypass RLS and perform administrative actions
     const adminClient = await createAdminClient()
     
     // Invite the user
@@ -38,6 +48,7 @@ export async function POST(req: Request) {
         role: role,
         full_name: full_name || "",
         formation: formation || "",
+        formation_label: formationLabel,
         needs_password_update: true
       },
       redirectTo: `${req.headers.get('origin')}/`
@@ -51,7 +62,6 @@ export async function POST(req: Request) {
     const newUser = inviteData.user
 
     // 4. Ensure the profile is set with the correct role and formation
-    // The trigger might have created it as 'coach' by default
     const { error: profileError } = await adminClient
       .from("profiles")
       .upsert({
@@ -60,6 +70,7 @@ export async function POST(req: Request) {
         full_name: full_name || "",
         role: role,
         formation: formation || "",
+        formation_label: formationLabel,
       }, { onConflict: 'id' })
 
     if (profileError) {
