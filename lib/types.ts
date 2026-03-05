@@ -14,7 +14,6 @@ export interface AttendanceRecord {
   date: string
   classId: ClassId
   present: boolean
-  arrivalTime?: string
 }
 
 export interface ClassInfo {

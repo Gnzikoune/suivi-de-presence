@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { PageHeader } from "@/components/page-header"
 import { StudentForm } from "@/components/student-form"
 import { StudentUpload } from "@/components/student-upload"
+import { ConfirmModal } from "@/components/confirm-modal"
 import { useSyncQueue } from "@/hooks/use-sync-queue"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -52,6 +53,7 @@ export default function ApprenantsPage() {
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
+  const [isActionPending, setIsActionPending] = useState(false)
 
   const filtered = useMemo(() => {
     let result = students
@@ -129,13 +131,14 @@ export default function ApprenantsPage() {
     if (!deleteTarget) return
     const payload = { id: deleteTarget.id }
 
-    if (!isOnline) {
-      addToQueue('DELETE_STUDENT', payload)
-      setDeleteTarget(null)
-      return
-    }
-
+    setIsActionPending(true)
     try {
+      if (!isOnline) {
+        addToQueue('DELETE_STUDENT', payload)
+        setDeleteTarget(null)
+        return
+      }
+
       await deleteStudent(deleteTarget.id)
       mutate("students")
       mutate("records")
@@ -145,12 +148,14 @@ export default function ApprenantsPage() {
       toast.error("Erreur serveur. Suppression mise en attente localement.")
       addToQueue('DELETE_STUDENT', payload)
       setDeleteTarget(null)
+    } finally {
+      setIsActionPending(false)
     }
   }, [deleteTarget, isOnline, addToQueue])
 
   const handleClearAll = useCallback(() => {
     // Note: clearAllStudents non implémenté côté API pour raison de sécurité
-    toast.error("La suppression en masse n'est pas encore disponible sur Airtable")
+    toast.error("La suppression en masse n'est pas encore disponible sur Supabase")
     setClearConfirmOpen(false)
   }, [])
 
@@ -366,57 +371,24 @@ export default function ApprenantsPage() {
         onSubmit={editingStudent ? handleEdit : handleAdd}
       />
 
-      {/* Delete Confirmation */}
-      <AlertDialog
+      {/* Confirmation Modals */}
+      <ConfirmModal
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
-            <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer{" "}
-              <strong>
-                {deleteTarget?.firstName} {deleteTarget?.lastName}
-              </strong>{" "}
-              ? Cette action supprimera également toutes ses données de présence
-              et est irréversible.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Supprimer
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onConfirm={handleDelete}
+        loading={isActionPending}
+        title="Confirmer la suppression"
+        description={`Êtes-vous sûr de vouloir supprimer ${deleteTarget?.firstName} ${deleteTarget?.lastName} ? Cette action supprimera également toutes ses données de présence.`}
+      />
 
-      {/* Delete All Confirmation */}
-      <AlertDialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Vider la liste des apprenants ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Cette action supprimera <strong>TOUS</strong> les apprenants ainsi que 
-              <strong>TOUTES</strong> les données de présence enregistrées. 
-              Cette opération est irréversible.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleClearAll}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Tout supprimer
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmModal
+        open={clearConfirmOpen}
+        onOpenChange={setClearConfirmOpen}
+        onConfirm={handleClearAll}
+        loading={isActionPending}
+        title="Vider la liste des apprenants ?"
+        description="Cette action supprimera TOUS les apprenants ainsi que TOUTES les données de présence. Cette opération est irréversible."
+      />
     </div>
   )
 }

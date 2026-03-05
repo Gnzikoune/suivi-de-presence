@@ -1,17 +1,23 @@
+import { createClient } from "@/lib/supabase-server"
 import { NextResponse } from "next/server"
-import base from "@/lib/airtable"
-
-const settingsTable = base("Settings")
 
 export async function GET() {
+  const supabase = await createClient()
   try {
-    const records = await settingsTable.select().all()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    const { data, error } = await supabase
+      .from("settings")
+      .select("*")
+      .eq("user_id", user.id)
+
+    if (error) throw error
+
     const settings: Record<string, string> = {}
-    records.forEach(r => {
-      const key = r.get("key") as string
-      const value = r.get("value") as string
-      if (key && value) {
-        settings[key] = value
+    ;(data || []).forEach(r => {
+      if (r.key && r.value) {
+        settings[r.key] = r.value
       }
     })
     return NextResponse.json(settings)
@@ -22,22 +28,27 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const supabase = await createClient()
   try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
     const body = await req.json()
     const { key, value, description } = body
 
-    // Check if exists
-    const existing = await settingsTable.select({
-      filterByFormula: `{key} = '${key}'`
-    }).firstPage()
+    const { data, error } = await supabase
+      .from("settings")
+      .upsert({ 
+        key, 
+        value, 
+        description,
+        user_id: user.id 
+      }, { onConflict: 'user_id,key' })
+      .select()
 
-    if (existing.length > 0) {
-      await settingsTable.update(existing[0].id, { value, description })
-      return NextResponse.json({ success: true, updated: true })
-    } else {
-      await settingsTable.create({ key, value, description })
-      return NextResponse.json({ success: true, created: true })
-    }
+    if (error) throw error
+
+    return NextResponse.json({ success: true, updated: true })
   } catch (error) {
     console.error("Save settings error:", error)
     return NextResponse.json({ error: "Failed to save setting" }, { status: 500 })

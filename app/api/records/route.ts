@@ -1,79 +1,99 @@
+import { createClient } from "@/lib/supabase-server"
 import { NextResponse } from "next/server"
-import { attendanceTable, studentsTable } from "@/lib/airtable"
 import type { AttendanceRecord } from "@/lib/types"
+import { logAudit } from "@/lib/audit-service"
 
 export async function GET() {
+  const supabase = await createClient()
   try {
-    const records = await attendanceTable.select().all()
-    const attendanceRecords: AttendanceRecord[] = records.map((record) => ({
-      id: record.id,
-      studentId: (record.get("studentId") as string[])?.[0] || "",
-      date: record.get("date") as string,
-      classId: record.get("classId") as any,
-      present: !!record.get("present"),
-      arrivalTime: record.get("arrivalTime") as string || undefined,
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    const { data, error } = await supabase
+      .from("records")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("date", { ascending: false })
+
+    if (error) throw error
+
+    const attendanceRecords: AttendanceRecord[] = (data || []).map((r) => ({
+      id: r.id,
+      studentId: r.student_id,
+      date: r.date,
+      classId: r.class_id,
+      present: !!r.present,
     }))
     return NextResponse.json(attendanceRecords)
   } catch (error) {
+    console.error("Supabase Error (GET records):", error)
     return NextResponse.json({ error: "Failed to fetch records" }, { status: 500 })
   }
 }
 
 export async function POST(req: Request) {
+  const supabase = await createClient()
   try {
-    const body = await req.json()
-    const { date, classId, presentStudentsData } = body as { 
-      date: string; 
-      classId: string; 
-      presentStudentsData: { studentId: string, arrivalTime: string }[] 
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    const { date, classId, presentStudentsData } = await req.json() as { 
+      date: string, 
+      classId: string, 
+      presentStudentsData: { studentId: string }[] 
     }
 
-    const presentIds = presentStudentsData.map(p => p.studentId)
+    // 1. Delete existing for this date/class
+    const { error: deleteError } = await supabase
+      .from("records")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("date", date)
+      .eq("class_id", classId)
 
-    // 1. Get all students of this class
-    const allStudents = await studentsTable.select({
-      filterByFormula: `{classId} = '${classId}'`
-    }).all()
+    if (deleteError) throw deleteError
 
-    // 2. Delete existing records for this date and class
-    const existingRecords = await attendanceTable.select({
-      filterByFormula: `AND({date} = '${date}', {classId} = '${classId}')`
-    }).all()
+    // 2. Fetch students to mark all
+    const { data: students, error: studentsError } = await supabase
+      .from("students")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("class_id", classId)
 
-    if (existingRecords.length > 0) {
-      // Chunk deletion (Airtable supports up to 10 at once)
-      const idsToDelete = existingRecords.map(r => r.id)
-      for (let i = 0; i < idsToDelete.length; i += 10) {
-        await Promise.all(idsToDelete.slice(i, i + 10).map(id => attendanceTable.destroy(id)))
-      }
-    }
+    if (studentsError) throw studentsError
+    if (!students) return NextResponse.json({ success: true })
 
-    // 3. Create new records for ALL students (mark presence and absence)
-    const recordsToCreate = allStudents.map(student => {
-      const presenceInfo = presentStudentsData.find(p => p.studentId === student.id)
-      const isPresent = !!presenceInfo
-      
+    const recordsToInsert = students.map(s => {
+      const isPresent = presentStudentsData.some(p => p.studentId === s.id)
       return {
-        fields: {
-          studentId: [student.id],
-          date,
-          classId,
-          present: isPresent,
-          ...(isPresent && presenceInfo?.arrivalTime ? { arrivalTime: presenceInfo.arrivalTime } : {})
-        }
+        user_id: user.id,
+        student_id: s.id,
+        date,
+        class_id: classId,
+        present: isPresent,
       }
     })
 
-    const chunks = []
-    for (let i = 0; i < recordsToCreate.length; i += 10) {
-      chunks.push(recordsToCreate.slice(i, i + 10))
+    if (recordsToInsert.length > 0) {
+      const { error: insertError } = await supabase
+        .from("records")
+        .insert(recordsToInsert)
+
+      if (insertError) throw insertError
     }
 
-    await Promise.all(chunks.map(chunk => attendanceTable.create(chunk)))
+    // Log action
+    await logAudit(
+      user.id, 
+      'SAVE_ATTENDANCE', 
+      `Pointage du ${date} (${classId === 'morning' ? 'Matin' : 'Après-midi'}) effectué avec ${presentStudentsData.length} présents`,
+      'attendance',
+      `${date}_${classId}`
+    )
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Airtable Error:", error)
+    console.error("Supabase Error (POST records):", error)
     return NextResponse.json({ error: "Failed to save attendance" }, { status: 500 })
   }
 }
