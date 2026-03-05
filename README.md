@@ -74,6 +74,14 @@ L'isolation des données est le cœur du projet. Grâce au `user_id` présent su
 
 L'application intègre **Vercel Analytics** pour suivre les performances et l'engagement des utilisateurs en production.
 
+## 🤝 Feedback & Contribution
+
+Les retours sont essentiels pour améliorer l'application pendant sa phase de test :
+- **Signalement de bug** : Contactez l'auteur via [WhatsApp](https://wa.me/241077305184) ou LinkedIn.
+- **Suggestions** : Toute idée de fonctionnalité est la bienvenue pour la version commerciale.
+
 ## 👤 Auteur
 
-- **Gildas NZIKOUNÉ** - [LinkedIn](https://www.linkedin.com/in/gildas-nzikoune)
+- **Gildas NZIKOUNÉ**
+  - [LinkedIn](https://www.linkedin.com/in/gildas-nzikoune)
+  - [WhatsApp](https://wa.me/241077305184) (+241 07 73 05 184)

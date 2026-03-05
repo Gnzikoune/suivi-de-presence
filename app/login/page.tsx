@@ -509,7 +509,7 @@ export default function LoginPage() {
             <p className="text-[10px] text-muted-foreground">
               Développé avec passion par{" "}
               <a 
-                href="https://www.linkedin.com/in/gildas-nzikoune" 
+                href="https://wa.me/241077305184" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="font-bold text-primary hover:underline"
