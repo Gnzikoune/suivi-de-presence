@@ -1,0 +1,158 @@
+# Espace Super Admin — Plan d'implémentation
+
+## Base de données — Nouvelles tables
+
+Script SQL à exécuter dans **Supabase SQL Editor** :
+
+```sql
+-- 1. Table des formations (remplace le tableau hardcodé)
+CREATE TABLE formations (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  value text UNIQUE NOT NULL,
+  label text NOT NULL,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE formations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Formations visibles par tous" ON formations;
+CREATE POLICY "Formations visibles par tous" ON formations FOR SELECT USING (true);
+INSERT INTO formations (value, label) VALUES
+  ('marketing-digital', 'Marketing Digital'),
+  ('digital-creator', 'Digital Creator'),
+  ('developpement-web', 'Développement Web');
+
+-- 2. Journal d'audit
+CREATE TABLE audit_log (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  actor_id uuid NOT NULL,
+  actor_name text,
+  action text NOT NULL,
+  target_type text,
+  target_id text,
+  details jsonb,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Audit visible par super_admin uniquement" ON audit_log;
+CREATE POLICY "Audit visible par super_admin uniquement" ON audit_log FOR SELECT USING (true);
+
+-- 3. Annonces
+CREATE TABLE IF NOT EXISTS announcements (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  author_id uuid NOT NULL,
+  author_name text,
+  title text NOT NULL,
+  message text NOT NULL,
+  target_role text DEFAULT 'all',
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Annonces visibles par tous" ON announcements;
+CREATE POLICY "Annonces visibles par tous" ON announcements FOR SELECT USING (true);
+
+-- 4. Table des PROFILS (pour rendre les infos coaches visibles dans Table Editor)
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id uuid REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
+  email text,
+  full_name text,
+  role text,
+  formation text,
+  formation_label text,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Profils visibles par tous" ON public.profiles;
+CREATE POLICY "Profils visibles par tous" ON public.profiles FOR SELECT USING (auth.role() = 'authenticated');
+
+-- Trigger pour synchroniser auto depuis auth.users
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name, role, formation, formation_label)
+  VALUES (
+    new.id,
+    new.email,
+    new.raw_user_meta_data->>'full_name',
+    new.raw_user_meta_data->>'role',
+    new.raw_user_meta_data->>'formation',
+    new.raw_user_meta_data->>'formation_label'
+  );
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+```
+
+## Proposed Changes
+
+### Backend — API Routes
+
+#### [NEW] [users/route.ts](file:///c:/Users/hp/Downloads/suivi-de-presence/app/api/super-admin/users/route.ts)
+- [GET](file:///c:/Users/hp/Downloads/suivi-de-presence/app/api/formations/route.ts#4-17) : Lister tous les utilisateurs (nom, email, rôle, formation, créé le, dernière connexion)
+- [PATCH](file:///c:/Users/hp/Downloads/suivi-de-presence/app/api/super-admin/users/route.ts#34-71) : Modifier le rôle d'un utilisateur
+- [DELETE](file:///c:/Users/hp/Downloads/suivi-de-presence/app/api/super-admin/announcements/route.ts#74-110) : Supprimer un utilisateur (+ écriture audit_log)
+
+#### [NEW] [formations/route.ts](file:///c:/Users/hp/Downloads/suivi-de-presence/app/api/super-admin/formations/route.ts)
+- [POST](file:///c:/Users/hp/Downloads/suivi-de-presence/app/api/super-admin/announcements/route.ts#28-73) : Créer une formation (+ audit)
+- [DELETE](file:///c:/Users/hp/Downloads/suivi-de-presence/app/api/super-admin/announcements/route.ts#74-110) : Supprimer une formation (+ audit)
+
+#### [NEW] [stats/route.ts](file:///c:/Users/hp/Downloads/suivi-de-presence/app/api/super-admin/stats/route.ts)
+- [GET](file:///c:/Users/hp/Downloads/suivi-de-presence/app/api/formations/route.ts#4-17) : KPIs globaux (users par rôle, inscriptions récentes, taux de présence)
+
+#### [NEW] [audit/route.ts](file:///c:/Users/hp/Downloads/suivi-de-presence/app/api/super-admin/audit/route.ts)
+- [GET](file:///c:/Users/hp/Downloads/suivi-de-presence/app/api/formations/route.ts#4-17) : Dernières entrées du journal d'audit
+
+#### [NEW] [announcements/route.ts](file:///c:/Users/hp/Downloads/suivi-de-presence/app/api/super-admin/announcements/route.ts)
+- [GET](file:///c:/Users/hp/Downloads/suivi-de-presence/app/api/formations/route.ts#4-17) : Lister les annonces
+- [POST](file:///c:/Users/hp/Downloads/suivi-de-presence/app/api/super-admin/announcements/route.ts#28-73) : Créer une annonce (+ audit)
+- [DELETE](file:///c:/Users/hp/Downloads/suivi-de-presence/app/api/super-admin/announcements/route.ts#74-110) : Supprimer une annonce
+
+#### [NEW] [settings/route.ts](file:///c:/Users/hp/Downloads/suivi-de-presence/app/api/super-admin/settings/route.ts)
+- `GET/PATCH` : Seuils d'alerte et créneaux horaires (stockés dans `formations` ou table config)
+
+#### [NEW] [formations/route.ts](file:///c:/Users/hp/Downloads/suivi-de-presence/app/api/formations/route.ts)
+- [GET](file:///c:/Users/hp/Downloads/suivi-de-presence/app/api/formations/route.ts#4-17) publique : Retourne les formations pour le formulaire d'inscription
+
+---
+
+### Frontend — Dashboard Super Admin
+
+#### [NEW] [page.tsx](file:///c:/Users/hp/Downloads/suivi-de-presence/app/super-admin/page.tsx)
+Dashboard avec **5 onglets** :
+
+| Onglet | Contenu |
+|--------|---------|
+| **Vue d'ensemble** | KPIs globaux, graphique d'activité, dernières inscriptions |
+| **Utilisateurs** | Tableau CRUD + export CSV + modification de rôle |
+| **Formations** | Liste des formations + ajout/suppression |
+| **Journal d'audit** | Historique des actions avec filtre |
+| **Annonces** | Créer/supprimer des annonces pour coaches/CM |
+
+---
+
+### Modifications existantes
+
+#### [MODIFY] [auth-gate.tsx](file:///c:/Users/hp/Downloads/suivi-de-presence/components/auth-gate.tsx)
+- Charger formations depuis `/api/formations` (plus de hardcodé)
+- Redirection `super_admin` → `/super-admin`
+- Afficher les annonces après connexion
+
+#### [MODIFY] [app-sidebar.tsx](file:///c:/Users/hp/Downloads/suivi-de-presence/components/app-sidebar.tsx)
+- `superAdminNavItems` avec lien "Administration"
+- Badge annonce non lue pour les coaches
+
+#### [MODIFY] [campus-manager/page.tsx](file:///c:/Users/hp/Downloads/suivi-de-presence/app/campus-manager/page.tsx)
+- Charger formations dynamiquement depuis `/api/formations`
+
+## Verification Plan
+
+### Manual Verification
+- Créer un super admin via Supabase (modifier `user_metadata.role` → `super_admin`)
+- Tester chaque onglet du dashboard
+- Créer une formation et vérifier qu'elle apparaît dans le formulaire d'inscription
+- Modifier un rôle utilisateur et vérifier le journal d'audit
+- Envoyer une annonce et vérifier sa réception côté coach
+- Exporter la liste des utilisateurs en CSV

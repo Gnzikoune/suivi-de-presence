@@ -11,7 +11,10 @@ import {
   GraduationCap,
   Database,
   LogOut,
+  ShieldCheck,
+  TrendingUp,
 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import {
   Sidebar,
   SidebarContent,
@@ -26,43 +29,36 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { createClient } from "@/lib/supabase-browser"
+import useSWR, { mutate } from "swr"
+import { fetchSettings, saveSetting, fetchProfile } from "@/lib/api-service"
+import { useEffect, useState } from "react"
 
-const navItems: { label: string; href: string; icon: any }[] = [
-  {
-    label: "Tableau de bord",
-    href: "/",
-    icon: LayoutDashboard,
-  },
-  {
-    label: "Presence",
-    href: "/presence",
-    icon: ClipboardCheck,
-  },
-  {
-    label: "Apprenants",
-    href: "/apprenants",
-    icon: Users,
-  },
-  {
-    label: "Statistiques",
-    href: "/statistiques",
-    icon: BarChart3,
-  },
-  {
-    label: "Documentation",
-    href: "/documentation",
-    icon: GraduationCap,
-  },
-  {
-    label: "Paramètres",
-    href: "/parametres",
-    icon: Database,
-  },
+const baseNavItems = [
+  { label: "Tableau de bord", href: "/", icon: LayoutDashboard },
+  { label: "Presence", href: "/presence", icon: ClipboardCheck },
+  { label: "Apprenants", href: "/apprenants", icon: Users },
+  { label: "Statistiques", href: "/statistiques", icon: BarChart3 },
+  { label: "Documentation", href: "/documentation", icon: GraduationCap },
+  { label: "Paramètres", href: "/parametres", icon: Database },
 ]
 
 export function AppSidebar() {
   const pathname = usePathname()
   const { setOpenMobile, isMobile } = useSidebar()
+  const { data: settings } = useSWR("settings", fetchSettings)
+  const { data: profile } = useSWR("profile", fetchProfile)
+  
+  const supabase = createClient()
+
+  // Dynamic items based on role
+  const dynamicNavItems = [...baseNavItems]
+  if (profile?.role === 'campus_manager' || profile?.role === 'super_admin') {
+    dynamicNavItems.splice(4, 0, { label: "Vue Campus", href: "/campus-manager", icon: TrendingUp })
+  }
+  if (profile?.role === 'super_admin') {
+    dynamicNavItems.splice(5, 0, { label: "Administration", href: "/super-admin", icon: ShieldCheck })
+  }
 
   const handleLinkClick = () => {
     if (isMobile) {
@@ -84,8 +80,19 @@ export function AppSidebar() {
             />
           </div>
           <div className="flex flex-col leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="font-bold text-sm text-primary uppercase tracking-tight">Suivi de Présence</span>
-            <span className="text-[10px] text-muted-foreground font-medium">FORMATIONS DIGITALES</span>
+            <span className="font-bold text-sm text-white uppercase tracking-tight">
+              {profile?.formation_label || "Suivi de Présence"}
+            </span>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-white font-bold">
+                {profile?.orga_name || "CENTRE DE FORMATION"}
+              </span>
+              {profile?.role && profile.role !== 'coach' && (
+                <Badge variant="default" className="text-[8px] h-3 px-1 bg-primary text-white uppercase font-black">
+                  {profile.role.replace('_', ' ')}
+                </Badge>
+              )}
+            </div>
           </div>
         </Link>
       </SidebarHeader>
@@ -94,7 +101,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
+              {dynamicNavItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     asChild
@@ -120,15 +127,21 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              onClick={() => {
-                localStorage.removeItem("auth_session")
-                window.location.href = "/"
+              onClick={async () => {
+                const supabase = createClient()
+                await supabase.auth.signOut()
+                window.location.href = "/login"
               }}
               className="text-destructive hover:text-destructive hover:bg-destructive/10"
               tooltip="Se déconnecter"
             >
               <LogOut className="size-4" />
-              <span className="font-bold">Déconnexion</span>
+              <div className="flex flex-col items-start leading-none gap-1">
+                <span className="font-bold text-xs">Déconnexion</span>
+                <span className="text-[10px] text-muted-foreground font-medium truncate max-w-[120px]">
+                  {profile?.full_name || profile?.email || "Chargement..."}
+                </span>
+              </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
