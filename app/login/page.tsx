@@ -102,7 +102,8 @@ export default function LoginPage() {
               formation: formationName,
               formation_label: selectedFormation?.label || "",
               orga_name: orgaName,
-            }
+            },
+            emailRedirectTo: `${window.location.origin}/`,
           }
         })
         

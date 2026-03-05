@@ -9,24 +9,12 @@ export async function GET() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    // Only Super Admin can list users
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle()
-
-    if (profileError || !profile || profile.role !== 'super_admin') {
-      console.warn("Unauthorized user list attempt:", user.id, profileError)
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
-    }
-
-    // Fetch all users
+    // Fetch profiles – RLS handles visibility (Admins/Managers only)
     const { data: users, error } = await supabase
       .from("profiles")
       .select("*")
       .order("updated_at", { ascending: false })
-
+    
     if (error) throw error
 
     // Fetch formations to map labels dynamically (fix for missing formation_label)
@@ -57,17 +45,6 @@ export async function PATCH(req: Request) {
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-    // Check permissions
-    const { data: adminProfile, error: adminError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle()
-
-    if (adminError || !adminProfile || adminProfile.role !== 'super_admin') {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
-    }
 
     const { userId, role } = await req.json()
     if (!userId || !role) return NextResponse.json({ error: "ID and role required" }, { status: 400 })

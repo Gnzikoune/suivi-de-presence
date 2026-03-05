@@ -222,8 +222,8 @@ export default function SuperAdminPage() {
   return (
     <div className="flex flex-col">
       <PageHeader 
-        title="Super Administration" 
-        description="Gestion globale de la plateforme et des formations."
+        title="Administration" 
+        description="Gestion de la plateforme, des utilisateurs et des formations."
       >
         <Button variant="outline" size="sm" onClick={() => {
           mutateStats()
