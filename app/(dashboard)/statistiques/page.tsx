@@ -13,6 +13,7 @@ import {
   User,
   Globe,
   BarChart3,
+  GraduationCap
 } from "lucide-react"
 import {
   Bar,
@@ -34,6 +35,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { StatsSkeleton } from "@/components/stats-skeleton"
 import {
   Select,
   SelectContent,
@@ -49,7 +51,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { fetchStudents, fetchRecords, fetchSettings, fetchProfile } from "@/lib/api-service"
+import { fetchStudents, fetchRecords, fetchSettings, fetchProfile, fetchCohorts } from "@/lib/api-service"
 import {
   getGlobalStats,
   getStudentStats,
@@ -774,14 +776,28 @@ function GlobalTab({
 
 // --- Main Page ---
 export default function StatistiquesPage() {
-  const { data: students = [] } = useSWR("students", fetchStudents, {
-    fallbackData: [],
-  })
-  const { data: records = [] } = useSWR("records", fetchRecords, {
-    fallbackData: [],
-  })
-  const { data: settings } = useSWR("settings", fetchSettings)
+  const [selectedCohortId, setSelectedCohortId] = useState<string>("all")
+  
   const { data: profile } = useSWR("profile", fetchProfile)
+  const { data: cohorts } = useSWR("cohorts", fetchCohorts)
+  const { data: students = [] } = useSWR(
+    ["students", selectedCohortId], 
+    () => fetchStudents(selectedCohortId === "all" ? undefined : selectedCohortId),
+    { fallbackData: [] }
+  )
+  const { data: records = [] } = useSWR(
+    "records", 
+    () => fetchRecords(),
+    { fallbackData: [] }
+  )
+  const { data: settings } = useSWR("settings", fetchSettings)
+
+  const filteredRecords = useMemo(() => {
+    if (!records || selectedCohortId === "all") return records || []
+    if (!students || students.length === 0) return []
+    const studentIds = new Set(students.map(s => s.id))
+    return records.filter(r => studentIds.has(r.studentId))
+  }, [records, students, selectedCohortId])
 
   const formStart = settings?.FORMATION_START || FORMATION_START
   const formEnd = settings?.FORMATION_END || FORMATION_END
@@ -790,8 +806,25 @@ export default function StatistiquesPage() {
     <div className="flex flex-col">
       <PageHeader
         title="Statistiques"
-        description={`${profile?.formation_label || profile?.formation || "Formation Marketing Digital"} - Analyse globale de l'assiduité.`}
-      />
+        description={`${profile?.orga_name || "CENTRE DE FORMATION"} - Analyse globale de l'assiduité.`}
+      >
+        <div className="flex items-center gap-2">
+          <GraduationCap className="size-4 text-muted-foreground" />
+          <Select value={selectedCohortId} onValueChange={setSelectedCohortId}>
+            <SelectTrigger className="w-[180px] bg-background">
+              <SelectValue placeholder="Toutes les cohortes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les cohortes</SelectItem>
+              {cohorts?.map((c: any) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}{c.campuses?.name ? ` - ${c.campuses.name}` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </PageHeader>
 
       <div className="flex flex-col gap-6 p-4 md:p-6 pb-20 max-w-5xl mx-auto w-full">
         <Tabs defaultValue="individual" className="w-full">
@@ -823,15 +856,24 @@ export default function StatistiquesPage() {
           </TabsList>
 
           <TabsContent value="individual" className="mt-6">
-            <IndividualTab students={students} records={records} formationStart={formStart} formationEnd={formEnd} />
+            {!students && !records ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <StatsSkeleton />
+                <StatsSkeleton />
+                <StatsSkeleton />
+                <StatsSkeleton />
+              </div>
+            ) : (
+              <IndividualTab students={students} records={filteredRecords} formationStart={formStart} formationEnd={formEnd} />
+            )}
           </TabsContent>
 
           <TabsContent value="class" className="mt-6">
-            <ClassTab students={students} records={records} formationStart={formStart} formationEnd={formEnd} />
+            <ClassTab students={students} records={filteredRecords} formationStart={formStart} formationEnd={formEnd} />
           </TabsContent>
 
           <TabsContent value="global" className="mt-6">
-            <GlobalTab students={students} records={records} formationStart={formStart} formationEnd={formEnd} />
+            <GlobalTab students={students} records={filteredRecords} formationStart={formStart} formationEnd={formEnd} />
           </TabsContent>
         </Tabs>
       </div>

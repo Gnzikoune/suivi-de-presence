@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, Loader2, ArrowRight, ChevronLeft, CheckCircle2 } from "lucide-react"
+import { AlertCircle, Loader2, ArrowRight, ChevronLeft, CheckCircle2, Eye, EyeOff } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import Image from "next/image"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -28,6 +28,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   
   const router = useRouter()
   const supabase = createClient()
@@ -87,9 +88,37 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      if (isSignUp) {
+        if (isSignUp) {
+          // --- WHITELIST CHECK ---
+          // Check if the email exists in 'profiles' (pre-registered by a CM or Admin)
+          const { data: existingProfile, error: profileError } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("email", email)
+            .maybeSingle()
+
+          if (profileError || !existingProfile) {
+            setError("Désolé, votre adresse e-mail n'est pas autorisée à s'inscrire ou n'a pas encore été invitée. Veuillez contacter votre Campus Manager.")
+            setLoading(false)
+            return
+          }
+          
+          // --- AUTO-FILL FROM WHITELIST ---
+          const { data: whitelistData } = await supabase
+            .from("profiles")
+            .select("role, orga_name, formation, full_name")
+            .eq("email", email)
+            .single()
+
+          const finalRole = whitelistData?.role || selectedRole
+          const finalOrga = whitelistData?.orga_name || orgaName
+          const finalFullName = whitelistData?.full_name || fullName
+          const finalFormation = whitelistData?.formation || formationName
+          // --- END AUTO-FILL ---
+          // --- END WHITELIST CHECK ---
+
         const selectedFormation = Array.isArray(formations) 
-          ? formations.find((f: any) => f.value === formationName)
+          ? formations.find((f: any) => f.value === finalFormation)
           : null
 
         const { data, error: authError } = await supabase.auth.signUp({
@@ -97,11 +126,11 @@ export default function LoginPage() {
           password,
           options: {
             data: {
-              full_name: fullName,
-              role: selectedRole,
-              formation: formationName,
+              full_name: finalFullName,
+              role: finalRole,
+              formation: finalFormation,
               formation_label: selectedFormation?.label || "",
-              orga_name: orgaName,
+              orga_name: finalOrga,
             },
             emailRedirectTo: `${window.location.origin}/`,
           }
@@ -134,7 +163,7 @@ export default function LoginPage() {
             console.error("Failed to log login event", e)
           }
           
-          router.push("/")
+          router.push("/dashboard")
           router.refresh()
         }
       }
@@ -151,6 +180,7 @@ export default function LoginPage() {
     setStep(1)
     setError(null)
     setSuccess(null)
+    setShowPassword(false)
   }
 
   const toggleForgotPassword = () => {
@@ -159,6 +189,7 @@ export default function LoginPage() {
     setStep(1)
     setError(null)
     setSuccess(null)
+    setShowPassword(false)
   }
 
   return (
@@ -392,16 +423,30 @@ export default function LoginPage() {
                               </button>
                             )}
                           </div>
-                          <Input
-                            id="password"
-                            type="password"
-                            placeholder="••••••••"
-                            className="h-10"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                            disabled={loading}
-                          />
+                          <div className="relative">
+                            <Input
+                              id="password"
+                              type={showPassword ? "text" : "password"}
+                              placeholder="••••••••"
+                              className="h-10 pr-10"
+                              value={password}
+                              onChange={(e) => setPassword(e.target.value)}
+                              required
+                              disabled={loading}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                              tabIndex={-1}
+                            >
+                              {showPassword ? (
+                                <EyeOff className="size-4" />
+                              ) : (
+                                <Eye className="size-4" />
+                              )}
+                            </button>
+                          </div>
                         </div>
                       </CardContent>
                       <CardFooter className="pt-2">

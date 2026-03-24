@@ -44,9 +44,8 @@ export function AuthGate({ children }: AuthGateProps) {
         setSession(newSession)
         
         // Handle post-auth events
-        if (event === 'SIGNED_IN' && pathname === '/login') {
+        if (event === 'SIGNED_IN' && (pathname === '/login' || pathname === '/')) {
           router.push('/dashboard')
-          router.refresh()
         }
         if (event === 'SIGNED_OUT' && pathname !== '/login') {
           router.push('/login')

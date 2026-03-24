@@ -4,14 +4,16 @@ Application moderne de suivi de présence développée avec **Next.js**, **Supab
 
 ## 🚀 Fonctionnalités Clés
 
-- **Système Multi-Rôles** : 
-  - **Super Admin** : Gestion complète des utilisateurs, des formations et audit système.
-  - **Campus Manager** : Vue globale sur plusieurs formations, statistiques avancées et pilotage campus.
-  - **Coach** : Gestion de sa propre formation, appel quotidien et gestion des apprenants.
-- **Authentification Sécurisée** : Intégration complète avec Supabase Auth (Email/Mot de passe).
+- **Système Multi-Rôles Sécurisé** : 
+  - **Super Admin** : Gestion complète des utilisateurs, des campus, des annonces globales et audit système.
+  - **Campus Manager** : Vue globale sur son campus, statistiques avancées et pilotage des cohortes.
+  - **Coach** : Gestion de sa propre formation, appel quotidien, historique et gestion des apprenants.
+- **Reporting & Export** : Génération de matrices d'assiduité complètes au format Excel, idéales pour les audits (Qualiopi, financements).
+- **Paramètres & Branding** : Personnalisation de l'application (Nom de l'organisation, upload de logo sur le cloud).
+- **Authentification Sécurisée** : Intégration globale avec Supabase Auth (Email/Mot de passe) couplée à une Row Level Security (RLS) impénétrable.
 - **Gestion des Formations** : Création dynamique de cohortes et personnalisation des paramètres.
 - **Tableau de Bord Dynamique** : Visualisation des taux de présence et d'absentéisme en temps réel via Recharts.
-- **Mode Hors-ligne & Responsive** : Optimisé pour une utilisation sur tablette et mobile en salle de cours.
+- **Mode Hors-ligne & Responsive** : Optimisé pour une utilisation continue sans internet en classe, avec synchronisation à la reconnexion (`useSyncQueue`).
 
 ## 🛠️ Stack Technique
 

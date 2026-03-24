@@ -1,13 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase-browser"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, Loader2, CheckCircle2, ShieldCheck, Lock } from "lucide-react"
+import { AlertCircle, Loader2, CheckCircle2, ShieldCheck, Lock, Eye, EyeOff } from "lucide-react"
 import { motion } from "framer-motion"
 import Image from "next/image"
 import { getErrorMessage } from "@/lib/error-utils"
@@ -18,9 +18,61 @@ export default function UpdatePasswordPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isNewUser, setIsNewUser] = useState(false)
+  const [invitedName, setInvitedName] = useState("")
   
   const router = useRouter()
   const supabase = createClient()
+
+  useEffect(() => {
+    // 1. FORCER LA LECTURE DU TOKEN DE L'URL SI NEXT.JS/SSR LE BLOQUE
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash
+      if (hash && hash.includes('access_token')) {
+        const hashParams = new URLSearchParams(hash.substring(1))
+        const access_token = hashParams.get('access_token')
+        const refresh_token = hashParams.get('refresh_token')
+        
+        if (access_token && refresh_token) {
+          supabase.auth.setSession({ access_token, refresh_token }).then(() => {
+            // Nettoyer l'URL
+            window.history.replaceState(null, '', window.location.pathname)
+          })
+        }
+      }
+    }
+
+    // 2. Écouter les événements d'authentification
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+          if (session?.user?.user_metadata?.needs_password_update) {
+            setIsNewUser(true)
+            setInvitedName(session.user.user_metadata.full_name || "")
+          }
+        }
+      }
+    )
+
+    // 3. Vérification classique si la session est déjà là
+    const checkStatus = async () => {
+      setTimeout(async () => {
+        const { data: { session } } = await supabase.auth.getSession()
+        const user = session?.user
+        if (user?.user_metadata?.needs_password_update) {
+          setIsNewUser(true)
+          setInvitedName(user.user_metadata.full_name || "")
+        }
+      }, 500)
+    }
+    checkStatus()
+
+    return () => {
+      authListener.subscription.unsubscribe()
+    }
+  }, [supabase])
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -102,9 +154,13 @@ export default function UpdatePasswordPage() {
           className="w-full max-w-md"
         >
           <div className="mb-3">
-            <h2 className="text-2xl font-black tracking-tight text-foreground mb-1">Nouveau mot de passe</h2>
+            <h2 className="text-2xl font-black tracking-tight text-foreground mb-1">
+              {isNewUser ? `Bienvenue ${invitedName} !` : "Nouveau mot de passe"}
+            </h2>
             <p className="text-sm text-muted-foreground font-medium">
-              Veuillez saisir votre nouveau mot de passe ci-dessous.
+              {isNewUser 
+                ? "Votre accès est prêt. Veuillez définir votre mot de passe pour commencer." 
+                : "Veuillez saisir votre nouveau mot de passe ci-dessous."}
             </p>
           </div>
 
@@ -113,7 +169,7 @@ export default function UpdatePasswordPage() {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                    <Lock className="size-4 text-primary" />
-                   Changement de sécurité
+                   {isNewUser ? "Activation de votre compte" : "Changement de sécurité"}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -131,29 +187,57 @@ export default function UpdatePasswordPage() {
                 )}
                 <div className="space-y-2">
                   <Label htmlFor="password">Nouveau mot de passe</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="••••••••"
-                    className="h-10"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    disabled={loading || !!success}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      className="h-10 pr-10"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      disabled={loading || !!success}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="size-4" />
+                      ) : (
+                        <Eye className="size-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword">Confirmer le mot de passe</Label>
-                  <Input
-                    id="confirmPassword"
-                    type="password"
-                    placeholder="••••••••"
-                    className="h-10"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    disabled={loading || !!success}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="confirmPassword"
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      className="h-10 pr-10"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                      disabled={loading || !!success}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="size-4" />
+                      ) : (
+                        <Eye className="size-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </CardContent>
               <CardFooter className="pt-2">
@@ -161,10 +245,10 @@ export default function UpdatePasswordPage() {
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Mise à jour...
+                      {isNewUser ? "Activation..." : "Mise à jour..."}
                     </>
                   ) : (
-                    "Mettre à jour le mot de passe"
+                    isNewUser ? "Activer mon compte" : "Mettre à jour le mot de passe"
                   )}
                 </Button>
               </CardFooter>

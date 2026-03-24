@@ -14,6 +14,7 @@ import {
   Globe,
   Clock
 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import NextImage from "next/image"
 
@@ -222,10 +223,88 @@ export default function MarketingHomePage() {
             />
             <FeatureCard 
               icon={CheckCircle2}
-              title="Export Administratif"
-              description="Générez vos listes d'émargement et rapports Excel en un clic pour vos audits."
+              title="Rapports d'Assiduité"
+              description="Générez vos matrices d'assiduité détaillées au format Excel en un clic pour vos audits (Qualiopi, financements)."
             />
           </motion.div>
+        </div>
+      </section>
+
+      {/* Vision Section */}
+      <section className="py-20 bg-primary/5 relative overflow-hidden">
+        <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
+        <div className="max-w-7xl mx-auto px-4 relative">
+          <div className="max-w-3xl mx-auto text-center mb-16">
+            <Badge className="mb-4 bg-primary/20 text-primary border-primary/20 hover:bg-primary/30 py-1 transition-colors">
+              Vision & Architecture
+            </Badge>
+            <h2 className="text-3xl md:text-4xl font-black mb-6 tracking-tight">
+              Une architecture pensée pour le long terme
+            </h2>
+            <p className="text-muted-foreground leading-relaxed">
+              Nous avons banni les erreurs classiques de conception pour vous offrir une plateforme robuste, capable de gérer des milliers d'apprenants sur plusieurs campus.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            <motion.div 
+              variants={itemVariants}
+              className="p-8 rounded-3xl bg-background border border-border/50 shadow-sm"
+            >
+              <div className="size-12 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center mb-6">
+                <Globe className="size-6" />
+              </div>
+              <h3 className="text-xl font-bold mb-4">Structure par Organisation</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Contrairement aux outils basiques, les données appartiennent à votre **structure pédagogique**, pas aux utilisateurs individuels. Cela permet une centralisation totale et une gestion multi-campus sans faille.
+              </p>
+            </motion.div>
+
+            <motion.div 
+              variants={itemVariants}
+              className="p-8 rounded-3xl bg-background border border-border/50 shadow-sm"
+            >
+              <div className="size-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mb-6">
+                <ShieldCheck className="size-6" />
+              </div>
+              <h3 className="text-xl font-bold mb-4">Identité vs Rôle</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Nous séparons l'identité de l'affectation. Un intervenant peut être coach sur un campus et manager sur un autre, avec un compte unique. Pas de duplication, sécurité maximale.
+              </p>
+            </motion.div>
+
+            <motion.div 
+              variants={itemVariants}
+              className="p-8 rounded-3xl bg-background border border-border/50 shadow-sm"
+            >
+              <div className="size-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center mb-6">
+                <Clock className="size-6" />
+              </div>
+              <h3 className="text-xl font-bold mb-4">Pointage par Session</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Les présences sont rattachées à des **sessions de cours** réelles. C'est le secret pour des statistiques ultra-rapides, une détection d'absentéisme proactive et un historique fiable par cohorte.
+              </p>
+            </motion.div>
+          </div>
+
+          <div className="mt-16 flex flex-col md:flex-row items-center justify-center gap-10 p-8 rounded-[2rem] border-2 border-dashed border-primary/20 bg-background/50">
+             <div className="text-center md:text-left space-y-4">
+               <h4 className="text-xl font-black text-primary">Le modèle "Code School"</h4>
+               <p className="max-w-lg text-sm text-muted-foreground leading-relaxed">
+                 Inspiré des plus grandes écoles de développement, notre modèle place le **Campus Manager** au cœur du système pour pré-enregistrer, valider et piloter l'excellence de chaque formation.
+               </p>
+             </div>
+             <div className="flex -space-x-4">
+               {[1,2,3,4].map(i => (
+                 <div key={i} className={`size-12 rounded-full border-4 border-background bg-muted flex items-center justify-center overflow-hidden`}>
+                   <Users className="size-6 text-muted-foreground/40" />
+                 </div>
+               ))}
+               <div className="size-12 rounded-full border-4 border-background bg-primary text-primary-foreground flex items-center justify-center text-xs font-black">
+                 +50
+               </div>
+             </div>
+          </div>
         </div>
       </section>
 
@@ -252,7 +331,7 @@ export default function MarketingHomePage() {
                 />
                 <RoleItem 
                   title="Super Administrateur" 
-                  description="Contrôlez les accès, gérez les formations et assurez l'audit complet du système." 
+                  description="Pilotez vos différents campus, gérez le branding de l'organisation et diffusez des annonces ciblées." 
                 />
               </div>
             </motion.div>
