@@ -69,7 +69,8 @@ export function useSyncQueue() {
             await saveAttendance(
               item.payload.date, 
               item.payload.classId, 
-              item.payload.presentStudentsData
+              item.payload.presentStudentsData,
+              item.payload.sessionId
             )
             break
           case 'ADD_STUDENT':
@@ -109,7 +110,7 @@ export function useSyncQueue() {
     }
   }, [isOnline])
 
-  const addToQueue = useCallback((type: SyncActionType, payload: any) => {
+  const addToQueue = useCallback((type: SyncActionType, payload: any, isServerError = false) => {
     const newItem: SyncItem = {
       id: crypto.randomUUID(),
       type,
@@ -117,8 +118,18 @@ export function useSyncQueue() {
       timestamp: Date.now()
     }
     setQueue(prev => [...prev, newItem])
-    toast.warning("Mode hors-ligne : opération mise en attente. 💾 Elle sera exécutée dès le retour d'Internet.")
-  }, [])
+    
+    if (isServerError) {
+      toast.error("Erreur de connexion : opération mise en attente. 💾 Elle sera synchronisée automatiquement.")
+    } else {
+      toast.warning("Mode hors-ligne : opération mise en attente. 💾 Elle sera exécutée dès le retour d'Internet.")
+    }
+    
+    // Auto-sync immediately if we are supposed to be online (retry)
+    if (navigator.onLine && !isSyncing) {
+      setTimeout(() => sync(), 500)
+    }
+  }, [sync, isSyncing])
 
   return {
     isOnline,

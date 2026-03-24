@@ -6,62 +6,81 @@ export async function GET(req: Request) {
 
   try {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    // Check if user is campus_manager or super_admin
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
+    // 0. Get user's active context from memberships
+    const { data: membership } = await supabase
+      .from("memberships")
+      .select("campus_id, org_id, role")
+      .eq("user_id", user.id)
       .single()
 
-    if (!profile || !["campus_manager", "super_admin"].includes(profile.role)) {
+    if (!membership || !["campus_manager", "super_admin"].includes(membership.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     const { searchParams } = new URL(req.url)
-    const filterFormation = searchParams.get("formation")
+    const filterCohortId = searchParams.get("cohortId")
 
-    // Aggregate data for Campus Manager
-    // 1. Total students (filtered by formation if provided)
-    let studentsQuery = supabase.from("students").select("id, formation", { count: 'exact' })
-    if (filterFormation && filterFormation !== 'all') {
-      studentsQuery = studentsQuery.eq("formation", filterFormation)
+    // 1. Total students
+    let studentsQuery = supabase.from("students").select("id, cohort_id", { count: 'exact' })
+    if (membership.org_id) {
+       // Get organization students (based on orga_name if we still use it, or join memberships)
+       // For now, let's stick to cohort-based filtering if provided, 
+       // or everything the user has access to.
+       if (membership.campus_id) {
+         // Filter by campus (via cohorts)
+         const { data: campusCohorts } = await supabase.from("cohorts").select("id").eq("campus_id", membership.campus_id)
+         const cohortIds = campusCohorts?.map(c => c.id) || []
+         studentsQuery = studentsQuery.in("cohort_id", cohortIds)
+       }
     }
-    const { data: students, count: totalStudents } = await studentsQuery
 
-    // 2. Average Presence Rate
-    // We need to filter records by the list of students if a formation is selected
-    let recordsQuery = supabase.from("records").select("present, student_id")
-    
-    if (filterFormation && filterFormation !== 'all' && students) {
-      const studentIds = students.map(s => s.id)
-      recordsQuery = recordsQuery.in("student_id", studentIds)
+    if (filterCohortId && filterCohortId !== 'all') {
+      studentsQuery = studentsQuery.eq("cohort_id", filterCohortId)
     }
-    
-    const { data: recordsData } = await recordsQuery
+    const { count: totalStudents } = await studentsQuery
 
-    const totalRecords = recordsData?.length || 0
-    const presentRecords = recordsData?.filter((r: { present: boolean }) => r.present).length || 0
-    const globalPresenceRate = totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : 0
+    // 2. Presence Rate (Global or Filtered)
+    let sessionIds: string[] = []
+    if (filterCohortId && filterCohortId !== 'all') {
+      const { data: sessions } = await supabase.from("sessions").select("id").eq("cohort_id", filterCohortId)
+      sessionIds = sessions?.map(s => s.id) || []
+    } else if (membership.campus_id) {
+      const { data: campusCohorts } = await supabase.from("cohorts").select("id").eq("campus_id", membership.campus_id)
+      const { data: sessions } = await supabase.from("sessions").select("id").in("cohort_id", campusCohorts?.map(c => c.id) || [])
+      sessionIds = sessions?.map(s => s.id) || []
+    }
 
-    // 3. Stats by Formation (Always return full list for the breakdown charts)
-    const { data: formations } = await supabase
-      .from("formations")
-      .select("*")
+    let globalPresenceRate = 0
+    if (sessionIds.length > 0) {
+      const { data: recordsData } = await supabase
+        .from("records")
+        .select("status")
+        .in("session_id", sessionIds)
 
-    const statsByFormation = await Promise.all(
-      (formations || []).map(async (f: { label: string, value: string }) => {
+      const total = recordsData?.length || 0
+      const present = recordsData?.filter(r => r.status === 'present').length || 0
+      globalPresenceRate = total > 0 ? Math.round((present / total) * 100) : 0
+    }
+
+    // 3. Stats by Cohort (Distribution)
+    let cohortsQuery = supabase.from("cohorts").select("id, name")
+    if (membership.campus_id) {
+      cohortsQuery = cohortsQuery.eq("campus_id", membership.campus_id)
+    }
+    const { data: cohortsList } = await cohortsQuery
+
+    const statsByCohort = await Promise.all(
+      (cohortsList || []).map(async (c) => {
         const { count } = await supabase
           .from("students")
           .select("*", { count: 'exact', head: true })
-          .eq("formation", f.value)
+          .eq("cohort_id", c.id)
         
         return {
-          label: f.label,
-          value: f.value,
+          label: c.name,
+          id: c.id,
           count: count || 0
         }
       })
@@ -70,7 +89,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       totalStudents: totalStudents || 0,
       globalPresenceRate,
-      statsByFormation,
+      statsByCohort,
       lastUpdate: new Date().toISOString()
     })
   } catch (error) {

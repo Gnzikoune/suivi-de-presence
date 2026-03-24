@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useEffect } from "react"
 import useSWR from "swr"
 import Link from "next/link"
 import { format, parseISO } from "date-fns"
@@ -12,7 +12,8 @@ import {
   ClipboardCheck,
   ArrowRight,
   UserCheck,
-  Megaphone
+  Megaphone,
+  GraduationCap
 } from "lucide-react"
 import {
   Bar,
@@ -29,8 +30,16 @@ import {
 import { PageHeader } from "@/components/page-header"
 import { StatsCard } from "@/components/stats-cards"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
-import { fetchStudents, fetchRecords, fetchSettings, fetchProfile } from "@/lib/api-service"
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select"
+import { fetchStudents, fetchRecords, fetchSettings, fetchProfile, fetchCohorts } from "@/lib/api-service"
 import {
   getGlobalStats,
   getTodayClassSummary,
@@ -38,6 +47,7 @@ import {
 import { StatsSkeleton } from "@/components/stats-skeleton"
 import type { Student, AttendanceRecord } from "@/lib/types"
 import { FORMATION_START, FORMATION_END } from "@/lib/constants"
+import { useState } from "react"
 
 const fetcher = async (url: string) => {
   const res = await fetch(url)
@@ -52,39 +62,62 @@ const fetcher = async (url: string) => {
 }
 
 export default function DashboardPage() {
-  const { data: students, isLoading: isLoadingStudents } = useSWR("students", fetchStudents)
-  const { data: records, isLoading: isLoadingRecords } = useSWR("records", fetchRecords)
-  const { data: settings } = useSWR("settings", fetchSettings)
+  const [selectedCohortId, setSelectedCohortId] = useState<string>("all")
+  
   const { data: profile } = useSWR("profile", fetchProfile)
-  const { data: allAnnouncements } = useSWR(profile ? "/api/super-admin/announcements" : null, fetcher)
+  const { data: cohorts } = useSWR("cohorts", fetchCohorts)
 
-  const announcements = useMemo(() => {
-    if (!allAnnouncements || !profile) return []
-    return allAnnouncements.filter((a: any) => 
-      a.target_role === 'all' || a.target_role === profile.role
-    )
-  }, [allAnnouncements, profile])
+
+
+  const handleCohortChange = (id: string) => {
+    setSelectedCohortId(id)
+    localStorage.setItem("dashboard_cohort_selected", "true")
+  }
+  const { data: students, isLoading: isLoadingStudents } = useSWR(
+    ["students", selectedCohortId], 
+    () => fetchStudents(selectedCohortId === "all" ? undefined : selectedCohortId)
+  )
+  const { data: records, isLoading: isLoadingRecords } = useSWR(
+    ["records", selectedCohortId], 
+    () => fetchRecords(undefined, undefined, undefined, selectedCohortId === "all" ? undefined : selectedCohortId)
+  )
+  const { data: settings } = useSWR("settings", fetchSettings)
+  const { data: announcements } = useSWR(profile ? "/api/super-admin/announcements" : null, fetcher)
+
+  const selectedCohort = useMemo(() => {
+    return cohorts?.find((c: any) => c.id === selectedCohortId)
+  }, [cohorts, selectedCohortId])
 
   const isLoading = isLoadingStudents || isLoadingRecords
 
-  const formStart = settings?.FORMATION_START || FORMATION_START
-  const formEnd = settings?.FORMATION_END || FORMATION_END
+  const formStart = selectedCohort?.startDate || settings?.FORMATION_START || FORMATION_START
+  const formEnd = selectedCohort?.endDate || settings?.FORMATION_END || FORMATION_END
+
+  // Filter records manually if cohort is selected, as fetchRecords doesn't support cohortId directly yet
+  // but many records might exist. Better for stats utility to handle filtered arrays.
+  const filteredRecords = useMemo(() => {
+    if (!records || selectedCohortId === "all") return records || []
+    if (!students) return []
+    const studentIds = new Set(students.map(s => s.id))
+    return records.filter(r => studentIds.has(r.studentId))
+  }, [records, students, selectedCohortId])
 
   const globalStats = useMemo(
-    () => getGlobalStats(students || [], records || [], formStart, formEnd),
-    [students, records, formStart, formEnd]
+    () => getGlobalStats(students || [], filteredRecords, formStart, formEnd),
+    [students, filteredRecords, formStart, formEnd]
   )
 
   const todayMorning = useMemo(
-    () => getTodayClassSummary(students || [], records || [], "morning"),
-    [students, records]
+    () => getTodayClassSummary(students || [], filteredRecords, "morning"),
+    [students, filteredRecords]
   )
 
   const todayAfternoon = useMemo(
-    () => getTodayClassSummary(students || [], records || [], "afternoon"),
-    [students, records]
+    () => getTodayClassSummary(students || [], filteredRecords, "afternoon"),
+    [students, filteredRecords]
   )
 
+  // ... rest of useMemo for charts remains same ...
   // Prepare chart data: last 10 recorded days
   const chartData = useMemo(() => {
     const morningDays = globalStats.morningStats.dailyStats
@@ -126,12 +159,34 @@ export default function DashboardPage() {
     <div className="flex flex-col">
       <PageHeader
         title="Tableau de bord"
-        description={`${profile?.formation_label || profile?.formation || "Formation Marketing Digital"} - ${format(new Date(), "dd MMMM yyyy", { locale: fr })}`}
-      />
+        description={`${profile?.orga_name || "CENTRE DE FORMATION"} - ${format(new Date(), "dd MMMM yyyy", { locale: fr })}`}
+      >
+        <div className="flex items-center gap-2">
+          <GraduationCap className="size-4 text-muted-foreground" />
+          <Select value={selectedCohortId} onValueChange={handleCohortChange}>
+            <SelectTrigger className="w-[240px] bg-background">
+              <SelectValue placeholder="Toutes les cohortes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les cohortes</SelectItem>
+              {cohorts?.map((c: any) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name} {c.campuses?.name ? `(${c.campuses.name})` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </PageHeader>
 
       <div className="flex flex-col gap-6 p-4 md:p-6 pb-20 max-w-5xl mx-auto w-full">
         {/* Announcements Section */}
-        {announcements && announcements.length > 0 && (
+        {isLoading ? (
+          <div className="space-y-4">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-24 w-full rounded-xl" />
+          </div>
+        ) : announcements && announcements.length > 0 && (
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-primary font-bold">
               <Megaphone className="size-5" />
@@ -160,12 +215,9 @@ export default function DashboardPage() {
         {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           {isLoading ? (
-            <>
-              <StatsSkeleton />
-              <StatsSkeleton />
-              <StatsSkeleton />
-              <StatsSkeleton />
-            </>
+            Array.from({ length: 4 }).map((_, i) => (
+              <StatsSkeleton key={i} />
+            ))
           ) : (
             <>
               <StatsCard

@@ -3,7 +3,8 @@ import { NextResponse } from "next/server"
 import { logAudit } from "@/lib/audit-service"
 
 export async function GET() {
-  const supabase = await createClient()
+  // Use admin client to bypass RLS and ensure the admin sees all formations
+  const supabase = await createAdminClient()
   try {
     const { data, error } = await supabase
       .from("formations")
@@ -19,14 +20,15 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const supabase = await createClient()
+  const adminSupabase = await createAdminClient()
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     const { label, value } = await req.json()
     
-    // Regular Client — RLS handles authorization
-    const { data, error } = await supabase
+    // Use admin client to bypass RLS recursive policy
+    const { data, error } = await adminSupabase
       .from("formations")
       .insert({ label, value })
       .select()
@@ -49,6 +51,7 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   const supabase = await createClient()
+  const adminSupabase = await createAdminClient()
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -57,10 +60,10 @@ export async function DELETE(req: Request) {
     const id = searchParams.get("id")
     if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
-    // Optional: Fetch name for logging before deletion
-    const { data: formation } = await supabase.from("formations").select("label").eq("id", id).single()
+    // Use admin client to bypass RLS
+    const { data: formation } = await adminSupabase.from("formations").select("label").eq("id", id).single()
 
-    const { error } = await supabase.from("formations").delete().eq("id", id)
+    const { error } = await adminSupabase.from("formations").delete().eq("id", id)
     if (error) {
       console.error("Formation deletion error:", error)
       return NextResponse.json({ error: error.message }, { status: 500 })

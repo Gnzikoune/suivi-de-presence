@@ -35,6 +35,7 @@ import {
 import { FORMATION_START, FORMATION_END } from "@/lib/constants"
 import { motion, AnimatePresence } from "framer-motion"
 import { ConfirmModal } from "@/components/confirm-modal"
+import { LogoUpload } from "@/components/logo-upload"
 
 export default function ParametresPage() {
   const { data: settings } = useSWR("settings", fetchSettings)
@@ -44,6 +45,7 @@ export default function ParametresPage() {
   const [formEnd, setFormEnd] = useState("")
   const [formationName, setFormationName] = useState("")
   const [orgaName, setOrgaName] = useState("")
+  const [logoUrl, setLogoUrl] = useState("")
   const { data: formations } = useSWR("/api/formations", async (url) => {
     const res = await fetch(url)
     if (!res.ok) return []
@@ -64,6 +66,7 @@ export default function ParametresPage() {
       setFullName(profile.full_name || "")
       setFormationName(profile.formation || "")
       setOrgaName(profile.orga_name || "")
+      setLogoUrl(profile.logo_url || "")
     }
   }, [profile])
 
@@ -87,7 +90,8 @@ export default function ParametresPage() {
       // Update the profile table for formation and organization (Master Data)
       await updateProfile({ 
         formation: formationName, 
-        orga_name: orgaName 
+        orga_name: orgaName,
+        logo_url: logoUrl
       })
       
       await mutate("settings")
@@ -178,6 +182,13 @@ export default function ParametresPage() {
                         />
                       </div>
                     </div>
+
+                    <div className="divider h-px bg-border my-6" />
+
+                    <LogoUpload 
+                      currentLogoUrl={logoUrl} 
+                      onUploadSuccess={setLogoUrl} 
+                    />
                   </CardContent>
                 </Card>
 
