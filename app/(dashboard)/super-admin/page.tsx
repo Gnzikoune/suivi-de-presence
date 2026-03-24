@@ -1,5 +1,7 @@
 "use client"
 
+import { Skeleton } from "@/components/ui/skeleton"
+
 import { useState } from "react"
 import useSWR from "swr"
 import { 
@@ -12,7 +14,10 @@ import {
   RefreshCcw,
   Megaphone,
   MessageSquare,
-  Trash2
+  Trash2,
+  Calendar,
+  CheckCircle2,
+  UserCheck
 } from "lucide-react"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -44,6 +49,11 @@ export default function SuperAdminPage() {
   const { data: users, error: usersError, mutate: mutateUsers } = useSWR("/api/super-admin/users", fetcher)
   const { data: auditLogs, mutate: mutateAudit } = useSWR("/api/super-admin/audit", fetcher)
   const { data: announcements, mutate: mutateAnnouncements } = useSWR("/api/super-admin/announcements", fetcher)
+  const { data: campuses } = useSWR("/api/campuses", fetcher)
+  const { data: cohorts } = useSWR("/api/cohorts", fetcher)
+  
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const { data: coachAttendance, mutate: mutateCoachAttendance } = useSWR(`/api/coach-presence?date=${selectedDate}`, fetcher)
   
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null)
   const [isAddingFormation, setIsAddingFormation] = useState(false)
@@ -172,7 +182,9 @@ export default function SuperAdminPage() {
     const data = {
       title: formData.get("title") as string,
       message: formData.get("message") as string,
-      target_role: formData.get("target_role") as string
+      target_role: formData.get("target_role") as string,
+      campus_id: formData.get("campus_id") as string,
+      cohort_id: formData.get("cohort_id") as string
     }
 
     setIsActionPending(true)
@@ -206,6 +218,25 @@ export default function SuperAdminPage() {
       setAnnouncementToDelete(null)
     } catch (err) {
       toast.error("Erreur lors de la suppression")
+    } finally {
+      setIsActionPending(false)
+    }
+  }
+
+  const handleCoachStatus = async (coachId: string, status: string) => {
+    setIsActionPending(true)
+    try {
+      const res = await fetch("/api/coach-presence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coach_id: coachId, date: selectedDate, status })
+      })
+      if (!res.ok) throw new Error()
+      toast.success("Statut mis à jour")
+      mutateCoachAttendance()
+      mutateAudit()
+    } catch (err) {
+      toast.error("Erreur lors de la mise à jour")
     } finally {
       setIsActionPending(false)
     }
@@ -315,10 +346,14 @@ export default function SuperAdminPage() {
               <Megaphone className="size-4" />
               <span>Annonces</span>
             </TabsTrigger>
+            <TabsTrigger value="staff-attendance" className="gap-2 px-4">
+              <UserCheck className="size-4" />
+              <span>Présence Staff</span>
+            </TabsTrigger>
           </TabsList>
 
           <AnimatePresence mode="wait">
-            <TabsContent value="formations" className="mt-6 border-none p-0 outline-none">
+            <TabsContent key="formations" value="formations" className="mt-6 border-none p-0 outline-none">
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -352,8 +387,10 @@ export default function SuperAdminPage() {
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {!formations && (
-                        <div className="col-span-2 py-12 text-center text-muted-foreground animate-pulse border-2 border-dashed rounded-xl">
-                          Chargement des formations...
+                        <div className="col-span-2 space-y-2">
+                           <Skeleton className="h-10 w-full" />
+                           <Skeleton className="h-10 w-full" />
+                           <Skeleton className="h-10 w-full" />
                         </div>
                       )}
                       {Array.isArray(formations) && formations.map((f: any) => (
@@ -383,7 +420,7 @@ export default function SuperAdminPage() {
               </motion.div>
             </TabsContent>
 
-            <TabsContent value="users" className="mt-6 border-none p-0 outline-none">
+            <TabsContent key="users" value="users" className="mt-6 border-none p-0 outline-none">
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -424,8 +461,12 @@ export default function SuperAdminPage() {
                           )}
                           {!users && !usersError && (
                             <tr>
-                              <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground animate-pulse">
-                                Chargement des membres de l'équipe...
+                              <td colSpan={4} className="px-4 py-8">
+                                <div className="space-y-2">
+                                  <Skeleton className="h-4 w-full" />
+                                  <Skeleton className="h-4 w-full" />
+                                  <Skeleton className="h-4 w-full" />
+                                </div>
                               </td>
                             </tr>
                           )}
@@ -486,7 +527,7 @@ export default function SuperAdminPage() {
               </motion.div>
             </TabsContent>
 
-            <TabsContent value="audit" className="mt-6 border-none p-0 outline-none">
+            <TabsContent key="audit" value="audit" className="mt-6 border-none p-0 outline-none">
 {/* ... slide confirm modals in at the end of content ... */}
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -511,7 +552,7 @@ export default function SuperAdminPage() {
                                 {new Date(log.created_at).toLocaleString('fr-FR')}
                               </span>
                             </div>
-                            <p className="text-sm text-foreground/80">{log.details.message}</p>
+                            <p className="text-sm text-foreground/80">{log.message}</p>
                             <div className="mt-2 flex items-center gap-2">
                               <Badge variant="outline" className="text-[9px] uppercase tracking-widest">{log.action}</Badge>
                               {log.target_type && (
@@ -527,8 +568,10 @@ export default function SuperAdminPage() {
                         </div>
                       )}
                       {!auditLogs && (
-                        <div className="py-20 text-center text-muted-foreground animate-pulse border-2 border-dashed rounded-xl">
-                          Chargement des journaux...
+                        <div className="space-y-4">
+                          <Skeleton className="h-20 w-full" />
+                          <Skeleton className="h-20 w-full" />
+                          <Skeleton className="h-20 w-full" />
                         </div>
                       )}
                     </div>
@@ -537,7 +580,7 @@ export default function SuperAdminPage() {
               </motion.div>
             </TabsContent>
 
-            <TabsContent value="announcements" className="mt-6 border-none p-0 outline-none">
+            <TabsContent key="announcements" value="announcements" className="mt-6 border-none p-0 outline-none">
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -559,12 +602,32 @@ export default function SuperAdminPage() {
                         <textarea name="message" required className="w-full text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-primary/20 min-h-[100px]" placeholder="Détails de l'annonce..." />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs font-semibold">Cible</label>
+                        <label className="text-xs font-semibold">Cible (Rôle)</label>
                         <select name="target_role" className="w-full text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-primary/20">
                           <option value="all">Tout le monde</option>
                           <option value="coach">Coachs uniquement</option>
                           <option value="campus_manager">Campus Managers uniquement</option>
                         </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-xs font-semibold">Cible (Campus)</label>
+                          <select name="campus_id" className="w-full text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-primary/20">
+                            <option value="all">Tous les campus</option>
+                            {Array.isArray(campuses) && campuses.map((c: any) => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-semibold">Cible (Cohorte)</label>
+                          <select name="cohort_id" className="w-full text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-primary/20">
+                            <option value="all">Toutes les cohortes</option>
+                            {Array.isArray(cohorts) && cohorts.map((c: any) => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                       <Button type="submit" className="w-full gap-2 font-bold" disabled={isActionPending}>
                         {isActionPending ? <RefreshCcw className="size-4 animate-spin" /> : <Megaphone className="size-4" />}
@@ -585,7 +648,15 @@ export default function SuperAdminPage() {
                         <div key={a.id} className="p-4 rounded-xl border bg-card hover:border-primary/20 transition-all relative group">
                           <div className="flex items-center justify-between mb-2">
                             <h4 className="font-bold text-sm tracking-tight">{a.title}</h4>
-                            <Badge variant="outline" className="text-[9px] uppercase">{a.target_role === 'all' ? 'Tous' : a.target_role}</Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-[9px] uppercase">{a.target_role === 'all' ? 'Tous' : a.target_role}</Badge>
+                              {a.campuses && (
+                                <Badge variant="outline" className="text-[9px] uppercase bg-blue-50 text-blue-700 border-blue-200">Campus: {a.campuses.name}</Badge>
+                              )}
+                              {a.cohorts && (
+                                <Badge variant="outline" className="text-[9px] uppercase bg-purple-50 text-purple-700 border-purple-200">Cohorte: {a.cohorts.name}</Badge>
+                              )}
+                            </div>
                           </div>
                           <p className="text-sm text-foreground/80 mb-3 whitespace-pre-wrap">{a.message}</p>
                           <div className="flex items-center justify-between">
@@ -609,6 +680,88 @@ export default function SuperAdminPage() {
                       {!announcements && (
                         <div className="py-20 text-center text-muted-foreground animate-pulse border-2 border-dashed rounded-xl">
                           Chargement des annonces...
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </TabsContent>
+            <TabsContent key="staff-attendance" value="staff-attendance" className="mt-6 border-none p-0 outline-none">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
+              >
+                <Card className="shadow-sm">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                    <div>
+                      <CardTitle>Présence des Formateurs</CardTitle>
+                      <CardDescription>Marquez la présence de votre équipe pour le {new Date(selectedDate).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                       <Calendar className="size-4 text-muted-foreground" />
+                       <input 
+                        type="date" 
+                        value={selectedDate} 
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        className="bg-background border rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                       />
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {Array.isArray(coachAttendance) && coachAttendance.map((coach: any) => (
+                        <div key={coach.id} className="p-4 rounded-xl border bg-card flex flex-col gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                              {coach.full_name?.charAt(0) || 'C'}
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-sm tracking-tight">{coach.full_name}</span>
+                              <span className="text-[10px] text-muted-foreground">{coach.role}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 pt-2 border-t">
+                            <Button 
+                              size="sm" 
+                              variant={coach.status === 'present' ? 'default' : 'outline'}
+                              className={`flex-1 text-[10px] h-7 ${coach.status === 'present' ? 'bg-success hover:bg-success/90' : ''}`}
+                              onClick={() => handleCoachStatus(coach.id, 'present')}
+                              disabled={isActionPending}
+                            >
+                              Présent
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant={coach.status === 'retard' ? 'default' : 'outline'}
+                              className={`flex-1 text-[10px] h-7 ${coach.status === 'retard' ? 'bg-warning hover:bg-warning/90 text-black' : ''}`}
+                              onClick={() => handleCoachStatus(coach.id, 'retard')}
+                              disabled={isActionPending}
+                            >
+                              Retard
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant={coach.status === 'absent' ? 'default' : 'outline'}
+                              className={`flex-1 text-[10px] h-7 ${coach.status === 'absent' ? 'bg-destructive hover:bg-destructive/90' : ''}`}
+                              onClick={() => handleCoachStatus(coach.id, 'absent')}
+                              disabled={isActionPending}
+                            >
+                              Absent
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      {Array.isArray(coachAttendance) && coachAttendance.length === 0 && (
+                        <div className="col-span-full py-12 text-center text-muted-foreground border-2 border-dashed rounded-xl italic">
+                          Aucun formateur trouvé dans votre organisation.
+                        </div>
+                      )}
+                      {!coachAttendance && (
+                        <div className="col-span-full py-12 text-center text-muted-foreground animate-pulse border-2 border-dashed rounded-xl">
+                          Chargement du staff...
                         </div>
                       )}
                     </div>

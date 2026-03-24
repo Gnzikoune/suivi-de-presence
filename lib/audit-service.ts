@@ -30,9 +30,8 @@ export async function logAudit(
       .from("audit_log")
       .insert({
         actor_id: actorId,
-        actor_name: actorName,
         action,
-        details: { message: details },
+        details: { message: details, actor_name: actorName }, // Store actor name in JSON details instead
         target_type: targetType,
         target_id: targetId,
       })

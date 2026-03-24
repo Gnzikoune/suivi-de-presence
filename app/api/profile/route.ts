@@ -14,7 +14,7 @@ export async function GET() {
     const metaFormation = metadata.formation_name || metadata.formation || ""
     const metaOrga = metadata.orga_name || ""
 
-    // --- 1. Ensure a profile row exists ---
+    // --- 1. Ensure a profile row exists (Identity) ---
     let { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("*")
@@ -22,63 +22,93 @@ export async function GET() {
       .single()
 
     if (profileError && profileError.code === "PGRST116") {
-      // Profile doesn't exist yet — create it with all known info
-      const { data: newProfile, error: createError } = await supabase
+      const { data: newProfile } = await supabase
         .from("profiles")
         .insert({
           id: user.id,
-          role: metadata.role || "coach",
           full_name: metaFullName,
           email: user.email,
-          formation: metaFormation || null,
-          orga_name: metaOrga || null,
+          formation: metaFormation // Sync formation from metadata
         })
         .select()
         .single()
+      profile = newProfile
+    } else if (profile && !profile.formation && metaFormation) {
+      // Sync formation if empty for existing profile
+      const { data: updatedProfile } = await supabase
+        .from("profiles")
+        .update({ formation: metaFormation })
+        .eq("id", user.id)
+        .select()
+        .single()
+      if (updatedProfile) profile = updatedProfile
+    }
 
-      if (createError) {
-        console.error("Profile creation error:", createError)
-      } else {
-        profile = newProfile
-        // Log the creation
-        await logAudit(user.id, 'SIGNUP', `Création du compte via inscription`, 'profile', user.id)
-      }
-    } else if (profile) {
-      // Profile exists — check for missing data and sync from metadata if needed
-      const updates: any = {}
-      if (metaFullName && !profile.full_name) updates.full_name = metaFullName
-      if (user.email && !profile.email) updates.email = user.email
-      // Use metaFormation/metaOrga if present to fill missing DB fields
-      if (metaFormation && !profile.formation) updates.formation = metaFormation
-      if (metaOrga && !profile.orga_name) updates.orga_name = metaOrga
+    // --- 2. Sync Organization & Membership (Architecture Refactor) ---
+    if (metaOrga) {
+      // Find or create organization
+      let { data: org } = await supabase
+        .from("organizations")
+        .select("id")
+        .eq("name", metaOrga)
+        .single()
 
-      if (Object.keys(updates).length > 0) {
-        const { data: updated } = await supabase
-          .from("profiles")
-          .update(updates)
-          .eq("id", user.id)
+      if (!org) {
+        const { data: newOrg } = await supabase
+          .from("organizations")
+          .insert({ name: metaOrga })
           .select()
           .single()
-        if (updated) profile = updated
+        org = newOrg
+      }
+
+      if (org) {
+        // Find or create membership
+        const userRole = metadata.role || "coach"
+        const { data: existingMember } = await supabase
+          .from("memberships")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("org_id", org.id)
+          .single()
+
+        if (!existingMember) {
+          await supabase
+            .from("memberships")
+            .insert({
+              user_id: user.id,
+              org_id: org.id,
+              role: userRole
+            })
+        }
       }
     }
 
-    // --- 2. Fetch formation label from 'formations' table if exists ---
-    let formationLabel = ""
-    if (profile?.formation) {
-      const { data: fData } = await supabase
-        .from("formations")
-        .select("label")
-        .eq("value", profile.formation)
-        .single()
-      
-      formationLabel = fData?.label || profile.formation
-    }
+    // --- 3. Return aggregated data for UI compatibility ---
+    const { data: memberships } = await supabase
+      .from("memberships")
+      .select(`
+        role,
+        organizations (id, name),
+        campuses (id, name)
+      `)
+      .eq("user_id", user.id)
 
+    // Check if user is super_admin in global profile or any membership
+    const isSuperAdmin = profile?.role === 'super_admin' || memberships?.some(m => m.role === 'super_admin')
+    
+    // For compatibility with V1 UI, we pick the first membership as "current"
+    const primaryMember = memberships?.[0]
+    
     return NextResponse.json({ 
-      ...(profile || {}), 
+      id: user.id,
+      full_name: profile?.full_name || metaFullName,
       email: user.email,
-      formation_label: formationLabel
+      role: isSuperAdmin ? 'super_admin' : (primaryMember?.role || metadata.role || "coach"),
+      orga_name: (primaryMember as any)?.organizations?.name || metaOrga || "Ma Formation",
+      org_id: (primaryMember as any)?.organizations?.id,
+      formation: profile?.formation || metaFormation, // Include formation in response
+      memberships: memberships || []
     })
   } catch (error) {
     console.error("Profile API error:", error)

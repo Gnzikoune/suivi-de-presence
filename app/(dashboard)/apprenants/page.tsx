@@ -36,7 +36,8 @@ import {
   fetchStudents, 
   addStudent, 
   updateStudent, 
-  deleteStudent 
+  deleteStudent,
+  fetchCohorts
 } from "@/lib/api-service"
 import type { Student, ClassId } from "@/lib/types"
 import { format, parseISO } from "date-fns"
@@ -45,10 +46,11 @@ import { TableSkeleton } from "@/components/table-skeleton"
 
 export default function ApprenantsPage() {
   const { isOnline, queue, isSyncing, addToQueue, sync } = useSyncQueue()
-  const { data: students = [], isLoading } = useSWR("students", fetchStudents)
+  const { data: students = [], isLoading } = useSWR("students", () => fetchStudents())
+  const { data: cohorts = [] } = useSWR("cohorts", () => fetchCohorts())
 
   const [search, setSearch] = useState("")
-  const [classFilter, setClassFilter] = useState<"all" | ClassId>("all")
+  const [cohortFilter, setCohortFilter] = useState<string>("all")
   const [formOpen, setFormOpen] = useState(false)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null)
@@ -57,9 +59,10 @@ export default function ApprenantsPage() {
 
   const filtered = useMemo(() => {
     let result = students
-    if (classFilter !== "all") {
-      result = result.filter((s) => s.classId === classFilter)
+    if (cohortFilter !== "all") {
+      result = result.filter((s) => s.cohortId === cohortFilter)
     }
+
     if (search.trim()) {
       const q = search.toLowerCase()
       result = result.filter(
@@ -71,23 +74,18 @@ export default function ApprenantsPage() {
     return result.sort((a, b) =>
       a.lastName.localeCompare(b.lastName, "fr")
     )
-  }, [students, classFilter, search])
-
-  const morningCount = students.filter((s) => s.classId === "morning").length
-  const afternoonCount = students.filter(
-    (s) => s.classId === "afternoon"
-  ).length
+  }, [students, cohortFilter, search])
 
   const handleAdd = useCallback(
-    async (data: { firstName: string; lastName: string; classId: ClassId }) => {
+    async (data: { firstName: string; lastName: string; cohortId: string; classId?: ClassId; email?: string }) => {
       if (!isOnline) {
         addToQueue('ADD_STUDENT', data)
         setFormOpen(false)
         return
       }
       try {
-        await addStudent(data.firstName, data.lastName, data.classId)
-        mutate("students")
+        await addStudent(data.firstName, data.lastName, data.classId || 'morning', data.email, data.cohortId)
+        await mutate("students")
         toast.success("Apprenant ajouté avec succès")
         setFormOpen(false)
       } catch (error) {
@@ -100,7 +98,7 @@ export default function ApprenantsPage() {
   )
 
   const handleEdit = useCallback(
-    async (data: { firstName: string; lastName: string; classId: ClassId }) => {
+    async (data: { firstName: string; lastName: string; cohortId: string; classId?: ClassId; email?: string }) => {
       if (!editingStudent) return
       const payload = { id: editingStudent.id, updates: data }
 
@@ -112,8 +110,14 @@ export default function ApprenantsPage() {
       }
 
       try {
-        await updateStudent(editingStudent.id, data)
-        mutate("students")
+        await updateStudent(editingStudent.id, {
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: data.email,
+          cohortId: data.cohortId,
+          classId: data.classId
+        })
+        await mutate("students")
         setEditingStudent(null)
         setFormOpen(false)
         toast.success("Apprenant modifié avec succès")
@@ -140,13 +144,13 @@ export default function ApprenantsPage() {
       }
 
       await deleteStudent(deleteTarget.id)
-      mutate("students")
+      await mutate("students")
       mutate("records")
       setDeleteTarget(null)
       toast.success("Apprenant supprimé avec succès")
     } catch (error) {
       toast.error("Erreur serveur. Suppression mise en attente localement.")
-      addToQueue('DELETE_STUDENT', payload)
+      addToQueue('DELETE_STUDENT', payload, true)
       setDeleteTarget(null)
     } finally {
       setIsActionPending(false)
@@ -200,7 +204,7 @@ export default function ApprenantsPage() {
           <Plus className="size-4" />
           <span className="hidden sm:inline">Ajouter</span>
         </Button>
-        <StudentUpload onSuccess={() => mutate("students")} />
+        <StudentUpload onSuccess={async () => mutate("students")} cohorts={cohorts} />
         <Button
           variant="outline"
           size="sm"
@@ -217,35 +221,27 @@ export default function ApprenantsPage() {
         {/* Filters */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Tabs
-            value={classFilter}
-            onValueChange={(v) => setClassFilter(v as "all" | ClassId)}
+            value={cohortFilter}
+            onValueChange={setCohortFilter}
             className="w-full sm:w-auto"
           >
-            <TabsList className="grid grid-cols-3 h-10 w-full sm:w-[450px] p-1 bg-muted/50 backdrop-blur-sm border">
+            <TabsList className="flex h-10 w-full sm:w-auto p-1 bg-muted/50 backdrop-blur-sm border overflow-x-auto">
               <TabsTrigger 
                 value="all"
-                className="gap-2 rounded-md transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                className="gap-2 rounded-md transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm px-4"
               >
                 <Users className="size-3.5" />
-                <span className="hidden sm:inline">Toutes ({students.length})</span>
-                <span className="sm:hidden">{students.length}</span>
+                <span>Tous</span>
               </TabsTrigger>
-              <TabsTrigger 
-                value="morning"
-                className="gap-2 rounded-md transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm"
-              >
-                <Sun className="size-3.5" />
-                <span className="hidden sm:inline">Matin ({morningCount})</span>
-                <span className="sm:hidden">{morningCount}</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="afternoon"
-                className="gap-2 rounded-md transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm"
-              >
-                <Moon className="size-3.5" />
-                <span className="hidden sm:inline">Après-midi ({afternoonCount})</span>
-                <span className="sm:hidden">{afternoonCount}</span>
-              </TabsTrigger>
+              {cohorts.map(c => (
+                <TabsTrigger 
+                  key={c.id}
+                  value={c.id}
+                  className="gap-2 rounded-md transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 whitespace-nowrap"
+                >
+                  <span>{c.name}{c.campuses?.name ? ` - ${c.campuses.name}` : ""}</span>
+                </TabsTrigger>
+              ))}
             </TabsList>
           </Tabs>
           <div className="relative w-full sm:max-w-xs">
@@ -269,7 +265,7 @@ export default function ApprenantsPage() {
                 <TableRow>
                   <TableHead>Apprenant</TableHead>
                   <TableHead className="hidden md:table-cell">Prénom</TableHead>
-                  <TableHead>Session</TableHead>
+                  <TableHead>Cohorte</TableHead>
                   <TableHead className="hidden lg:table-cell">
                     Date d{"'"}ajout
                   </TableHead>
@@ -303,23 +299,18 @@ export default function ApprenantsPage() {
                         {student.firstName}
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant={
-                            student.classId === "morning"
-                              ? "default"
-                              : "secondary"
-                          }
-                          className={cn(
-                            "text-[10px] sm:text-xs px-1.5 sm:px-2.5",
-                            student.classId === "morning"
-                              ? "bg-success text-success-foreground hover:bg-success/90"
-                              : "bg-primary text-primary-foreground hover:bg-primary/90"
-                          )}
-                        >
-                          {student.classId === "morning"
-                            ? "Matin"
-                            : "Après-midi"}
-                        </Badge>
+                        {(() => {
+                          const c = cohorts.find(ch => ch.id === student.cohortId)
+                          if (!c) return <span className="text-xs text-muted-foreground">-</span>
+                          return (
+                            <Badge
+                              variant="secondary"
+                              className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
+                            >
+                              {c.name}{c.campuses?.name ? ` - ${c.campuses.name}` : ""}
+                            </Badge>
+                          )
+                        })()}
                       </TableCell>
                       <TableCell className="hidden lg:table-cell text-muted-foreground">
                         {format(parseISO(student.createdAt), "dd MMM yyyy", {
@@ -368,6 +359,7 @@ export default function ApprenantsPage() {
           if (!open) setEditingStudent(null)
         }}
         student={editingStudent}
+        cohorts={cohorts}
         onSubmit={editingStudent ? handleEdit : handleAdd}
       />
 

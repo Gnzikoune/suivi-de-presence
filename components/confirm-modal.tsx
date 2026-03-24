@@ -22,6 +22,7 @@ interface ConfirmModalProps {
   cancelText?: string
   variant?: "default" | "destructive"
   loading?: boolean
+  children?: React.ReactNode
 }
 
 export function ConfirmModal({
@@ -34,6 +35,7 @@ export function ConfirmModal({
   cancelText = "Annuler",
   variant = "destructive",
   loading = false,
+  children,
 }: ConfirmModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -49,6 +51,7 @@ export function ConfirmModal({
             {description}
           </DialogDescription>
         </DialogHeader>
+        {children}
         <DialogFooter className="gap-2 sm:gap-0">
           <Button
             variant="outline"
