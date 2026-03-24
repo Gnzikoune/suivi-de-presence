@@ -138,8 +138,11 @@ export default function PresencePage() {
     if (selectedCohortId !== "all") {
       list = students.filter(s => s.cohortId === selectedCohortId)
     }
+    // Only show students belonging to the current session's period (morning or afternoon)
+    list = list.filter(s => s.classId === currentClassId)
+    
     return list.sort((a, b) => a.lastName.localeCompare(b.lastName, "fr"))
-  }, [students, selectedCohortId])
+  }, [students, selectedCohortId, currentClassId])
 
   const filteredStudents = useMemo(() => {
     if (!search.trim()) return classStudents

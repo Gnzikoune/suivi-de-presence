@@ -22,6 +22,13 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -51,6 +58,7 @@ export default function ApprenantsPage() {
 
   const [search, setSearch] = useState("")
   const [cohortFilter, setCohortFilter] = useState<string>("all")
+  const [periodFilter, setPeriodFilter] = useState<string>("all")
   const [formOpen, setFormOpen] = useState(false)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null)
@@ -61,6 +69,10 @@ export default function ApprenantsPage() {
     let result = students
     if (cohortFilter !== "all") {
       result = result.filter((s) => s.cohortId === cohortFilter)
+    }
+
+    if (periodFilter !== "all") {
+      result = result.filter((s) => s.classId === periodFilter)
     }
 
     if (search.trim()) {
@@ -74,7 +86,7 @@ export default function ApprenantsPage() {
     return result.sort((a, b) =>
       a.lastName.localeCompare(b.lastName, "fr")
     )
-  }, [students, cohortFilter, search])
+  }, [students, cohortFilter, periodFilter, search])
 
   const handleAdd = useCallback(
     async (data: { firstName: string; lastName: string; cohortId: string; classId?: ClassId; email?: string }) => {
@@ -219,41 +231,57 @@ export default function ApprenantsPage() {
 
       <div className="flex flex-col gap-6 p-4 md:p-6 pb-20 max-w-5xl mx-auto w-full">
         {/* Filters */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Tabs
-            value={cohortFilter}
-            onValueChange={setCohortFilter}
-            className="w-full sm:w-auto"
-          >
-            <TabsList className="flex h-10 w-full sm:w-auto p-1 bg-muted/50 backdrop-blur-sm border overflow-x-auto">
-              <TabsTrigger 
-                value="all"
-                className="gap-2 rounded-md transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm px-4"
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <Tabs
+                value={cohortFilter}
+                onValueChange={setCohortFilter}
+                className="w-full sm:w-auto"
               >
-                <Users className="size-3.5" />
-                <span>Tous</span>
-              </TabsTrigger>
-              {cohorts.map(c => (
-                <TabsTrigger 
-                  key={c.id}
-                  value={c.id}
-                  className="gap-2 rounded-md transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 whitespace-nowrap"
-                >
-                  <span>{c.name}{c.campuses?.name ? ` - ${c.campuses.name}` : ""}</span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-          <div className="relative w-full sm:max-w-xs">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher un apprenant..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
+                <TabsList className="flex h-10 w-full sm:w-auto p-1 bg-muted/50 backdrop-blur-sm border overflow-x-auto">
+                  <TabsTrigger 
+                    value="all"
+                    className="gap-2 rounded-md transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm px-4"
+                  >
+                    <Users className="size-3.5" />
+                    <span>Tous</span>
+                  </TabsTrigger>
+                  {cohorts.map(c => (
+                    <TabsTrigger 
+                      key={c.id}
+                      value={c.id}
+                      className="gap-2 rounded-md transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 whitespace-nowrap"
+                    >
+                      <span>{c.name}{c.campuses?.name ? ` - ${c.campuses.name}` : ""}</span>
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+
+              <Select value={periodFilter} onValueChange={setPeriodFilter}>
+                <SelectTrigger className="w-40 h-10 bg-muted/50">
+                  <div className="flex items-center gap-2">
+                    {periodFilter === 'morning' ? <Sun className="size-3.5" /> : periodFilter === 'afternoon' ? <Moon className="size-3.5" /> : <Users className="size-3.5" />}
+                    <SelectValue placeholder="Période" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes périodes</SelectItem>
+                  <SelectItem value="morning">Matin</SelectItem>
+                  <SelectItem value="afternoon">Après-midi</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="relative w-full sm:max-w-xs">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher un apprenant..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
           </div>
-        </div>
 
         {/* Table */}
         {isLoading ? (
@@ -266,6 +294,7 @@ export default function ApprenantsPage() {
                   <TableHead>Apprenant</TableHead>
                   <TableHead className="hidden md:table-cell">Prénom</TableHead>
                   <TableHead>Cohorte</TableHead>
+                  <TableHead>Période</TableHead>
                   <TableHead className="hidden lg:table-cell">
                     Date d{"'"}ajout
                   </TableHead>
@@ -311,6 +340,17 @@ export default function ApprenantsPage() {
                             </Badge>
                           )
                         })()}
+                      </TableCell>
+                      <TableCell>
+                        {student.classId === 'morning' ? (
+                          <Badge variant="outline" className="gap-1 border-orange-200 bg-orange-50 text-orange-700">
+                            <Sun className="size-3" /> Matin
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="gap-1 border-blue-200 bg-blue-50 text-blue-700">
+                            <Moon className="size-3" /> Après-midi
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="hidden lg:table-cell text-muted-foreground">
                         {format(parseISO(student.createdAt), "dd MMM yyyy", {
