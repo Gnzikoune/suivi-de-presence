@@ -115,8 +115,22 @@ export async function POST(req: Request) {
       finalOrgaName = profile?.orga_name
     }
 
-    // 3. Insert student record using Admin Client for robustness
+    // 3. Prevent Duplicates: Check if a student with same name/cohort/orga already exists
     const adminSupabase = await createAdminClient()
+    const { data: existingStudent } = await adminSupabase
+      .from("students")
+      .select("id")
+      .eq("firstName", firstName)
+      .eq("lastName", lastName)
+      .eq("cohort_id", cohortId)
+      .eq("orga_name", finalOrgaName)
+      .maybeSingle()
+
+    if (existingStudent) {
+      return NextResponse.json({ error: "Cet apprenant existe déjà dans cette cohorte." }, { status: 409 })
+    }
+
+    // 4. Insert student record using Admin Client for robustness
     const { data, error } = await adminSupabase
       .from("students")
       .insert({
