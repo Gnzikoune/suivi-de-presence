@@ -34,5 +34,5 @@ export function getErrorMessage(error: any): string {
 
   // Traductions générales
   console.warn("Unhandled error code/message:", { code, message });
-  return "Une erreur est survenue lors de l'opération. Veuillez réessayer plus tard.";
+  return message || "Une erreur est survenue lors de l'opération. Veuillez réessayer plus tard.";
 }

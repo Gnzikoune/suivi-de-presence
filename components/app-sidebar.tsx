@@ -13,6 +13,7 @@ import {
   LogOut,
   ShieldCheck,
   TrendingUp,
+  MapPin,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -38,6 +39,7 @@ const baseNavItems = [
   { label: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard },
   { label: "Presence", href: "/presence", icon: ClipboardCheck },
   { label: "Apprenants", href: "/apprenants", icon: Users },
+  { label: "Cohortes", href: "/cohortes", icon: GraduationCap },
   { label: "Statistiques", href: "/statistiques", icon: BarChart3 },
   { label: "Paramètres", href: "/parametres", icon: Database },
 ]
@@ -53,10 +55,7 @@ export function AppSidebar() {
   // Dynamic items based on role
   const dynamicNavItems = [...baseNavItems]
   if (profile?.role === 'campus_manager' || profile?.role === 'super_admin') {
-    dynamicNavItems.splice(4, 0, { label: "Vue Campus", href: "/campus-manager", icon: TrendingUp })
-  }
-  if (profile?.role === 'super_admin') {
-    dynamicNavItems.splice(5, 0, { label: "Administration", href: "/super-admin", icon: ShieldCheck })
+    dynamicNavItems.splice(4, 0, { label: "Administration", href: "/super-admin", icon: ShieldCheck })
   }
 
   const handleLinkClick = () => {
@@ -80,14 +79,21 @@ export function AppSidebar() {
           </div>
           <div className="flex flex-col leading-tight group-data-[collapsible=icon]:hidden">
             <span className="font-bold text-sm text-white uppercase tracking-tight">
-              {profile?.formation_label || "Suivi de Présence"}
+              {profile?.orga_name || "Suivi de Présence"}
             </span>
             <div className="flex items-center gap-1">
-              <span className="text-[10px] text-white font-bold">
-                {profile?.orga_name || "CENTRE DE FORMATION"}
+              <span className="text-[10px] text-white/70 font-bold flex items-center gap-1">
+                {(profile?.memberships?.[0] as any)?.campuses?.name ? (
+                  <>
+                    <MapPin className="size-2" />
+                    {(profile?.memberships?.[0] as any)?.campuses?.name}
+                  </>
+                ) : (
+                  "CENTRE DE FORMATION"
+                )}
               </span>
               {profile?.role && profile.role !== 'coach' && (
-                <Badge variant="default" className="text-[8px] h-3 px-1 bg-primary text-white uppercase font-black">
+                <Badge variant="default" className="text-[8px] h-3 px-1 bg-primary text-white uppercase font-black ml-1">
                   {profile.role.replace('_', ' ')}
                 </Badge>
               )}

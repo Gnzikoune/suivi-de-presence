@@ -4,16 +4,27 @@ import { useState, useRef } from "react"
 import { FileUp, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
-import { apiBulkAddStudents } from "@/lib/api-service"
-import type { ClassId } from "@/lib/types"
+import { apiBulkAddStudents, addStudent } from "@/lib/api-service"
+import { useSyncQueue } from "@/hooks/use-sync-queue"
+import type { ClassId, Cohort } from "@/lib/types"
 import * as XLSX from "xlsx"
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select"
 
 interface StudentUploadProps {
   onSuccess: () => void
+  cohorts: Cohort[]
 }
 
-export function StudentUpload({ onSuccess }: StudentUploadProps) {
+export function StudentUpload({ onSuccess, cohorts }: StudentUploadProps) {
+  const { isOnline, addToQueue } = useSyncQueue()
   const [uploading, setUploading] = useState(false)
+  const [targetCohortId, setTargetCohortId] = useState<string>("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -47,7 +58,7 @@ export function StudentUpload({ onSuccess }: StudentUploadProps) {
           return
         }
 
-        const studentsData: { firstName: string; lastName: string; classId: ClassId }[] = []
+        const studentsData: { firstName: string; lastName: string; classId: ClassId; cohortId?: string }[] = []
         
         // Find column indices
         const headerRow = rawRows[0] as string[]
@@ -75,20 +86,43 @@ export function StudentUpload({ onSuccess }: StudentUploadProps) {
           }
 
           if (lastName && firstName) {
-            studentsData.push({ firstName, lastName, classId })
+            studentsData.push({ 
+              firstName, 
+              lastName, 
+              classId, 
+              cohortId: targetCohortId || undefined 
+            })
           }
         }
 
         if (studentsData.length === 0) {
           toast.error("Aucun apprenant trouvé dans le fichier.")
         } else {
-          const { addedCount } = await apiBulkAddStudents(studentsData)
-          if (addedCount > 0) {
-            toast.success(
-              `${addedCount} apprenant(s) importé(s) avec succès.`
-            )
-          } else {
-            toast.error("Aucun apprenant n'a pu être importé.")
+          if (!isOnline) {
+            studentsData.forEach(s => addToQueue('ADD_STUDENT', s))
+            toast.warning(`${studentsData.length} apprenants mis en file d'attente (Hors-ligne).`)
+            onSuccess()
+            return
+          }
+
+          try {
+            const { addedCount } = await apiBulkAddStudents(studentsData)
+            if (addedCount > 0) {
+              toast.success(
+                `${addedCount} apprenant(s) importé(s) avec succès.`
+              )
+              if (addedCount < studentsData.length) {
+                toast.warning(`${studentsData.length - addedCount} échec(s). Vérifiez les doublons.`)
+              }
+            } else {
+              toast.error("Aucun apprenant n'a pu être importé.")
+              // Maybe add to queue if it's a general server error? 
+              // apiBulkAddStudents already loops and logs errors, 
+              // so we might not want to queue everything if some are just duplicates.
+            }
+          } catch (error) {
+            toast.error("Erreur lors de l'import : mise en attente des données.")
+            studentsData.forEach(s => addToQueue('ADD_STUDENT', s, true))
           }
           onSuccess()
         }
@@ -118,19 +152,38 @@ export function StudentUpload({ onSuccess }: StudentUploadProps) {
         ref={fileInputRef}
         onChange={handleFileChange}
       />
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={uploading}
-        onClick={() => fileInputRef.current?.click()}
-      >
-        {uploading ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : (
-          <FileUp className="size-4" />
-        )}
-        <span className="ml-2 hidden sm:inline">Importer Excel</span>
-      </Button>
+      <div className="flex items-center gap-2">
+        <Select
+          value={targetCohortId}
+          onValueChange={setTargetCohortId}
+        >
+          <SelectTrigger className="w-[180px] h-9">
+            <SelectValue placeholder="Cohorte cible..." />
+          </SelectTrigger>
+          <SelectContent>
+            {cohorts.map(c => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}{c.campuses?.name ? ` - ${c.campuses.name}` : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={uploading || !targetCohortId}
+          onClick={() => fileInputRef.current?.click()}
+          className="h-9"
+        >
+          {uploading ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <FileUp className="size-4" />
+          )}
+          <span className="ml-2 hidden sm:inline">Importer Excel</span>
+        </Button>
+      </div>
     </div>
   )
 }

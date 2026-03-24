@@ -51,7 +51,7 @@ export async function POST(req: Request) {
         formation_label: formationLabel,
         needs_password_update: true
       },
-      redirectTo: `${req.headers.get('origin') || 'https://suivi-de-presence.vercel.app'}/`
+      redirectTo: `${req.headers.get('origin') || 'https://suivi-de-presence.vercel.app'}/update-password`
     })
 
     if (inviteError) {
