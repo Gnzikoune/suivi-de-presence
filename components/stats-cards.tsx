@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { LucideIcon } from "lucide-react"
+import { ArrowUpRight, ArrowDownRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface StatsCardProps {
@@ -11,6 +12,9 @@ interface StatsCardProps {
   icon: LucideIcon
   className?: string
   iconClassName?: string
+  trend?: 'up' | 'down' | 'neutral'
+  trendValue?: string | number
+  trendLabel?: string
 }
 
 export function StatsCard({
@@ -20,6 +24,9 @@ export function StatsCard({
   icon: Icon,
   className,
   iconClassName,
+  trend,
+  trendValue,
+  trendLabel,
 }: StatsCardProps) {
   return (
     <Card className={cn("relative overflow-hidden shadow-sm", className)}>
@@ -37,13 +44,33 @@ export function StatsCard({
         </div>
       </CardHeader>
       <CardContent className="px-3 pb-3 md:px-3.5 md:pb-3.5 pt-0">
-        <div className="text-lg md:text-xl font-bold text-foreground leading-none">
-          {value}
+        <div className="flex items-baseline gap-2">
+          <div className="text-lg md:text-xl font-bold text-foreground leading-none">
+            {value}
+          </div>
+          {trend && trendValue && (
+            <div className={cn(
+              "flex items-center text-[10px] font-bold",
+              trend === 'up' ? "text-success" : trend === 'down' ? "text-destructive" : "text-muted-foreground"
+            )}>
+              {trend === 'up' ? <ArrowUpRight className="size-3 mr-0.5" /> : trend === 'down' ? <ArrowDownRight className="size-3 mr-0.5" /> : null}
+              {trendValue}
+            </div>
+          )}
         </div>
-        {subtitle && (
-          <p className="text-[9px] md:text-[10px] text-muted-foreground mt-1 line-clamp-1 italic">
-            {subtitle}
-          </p>
+        {(subtitle || trendLabel) && (
+          <div className="flex flex-col mt-1">
+            {trendLabel && (
+              <span className="text-[9px] text-muted-foreground font-medium uppercase tracking-tight">
+                {trendLabel}
+              </span>
+            )}
+            {subtitle && (
+              <p className="text-[9px] md:text-[10px] text-muted-foreground line-clamp-1 italic">
+                {subtitle}
+              </p>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>
