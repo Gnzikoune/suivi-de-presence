@@ -55,7 +55,8 @@ export function AppSidebar() {
   // Dynamic items based on role
   const dynamicNavItems = [...baseNavItems]
   if (profile?.role === 'campus_manager' || profile?.role === 'super_admin') {
-    dynamicNavItems.splice(4, 0, { label: "Administration", href: "/super-admin", icon: ShieldCheck })
+    dynamicNavItems.splice(4, 0, { label: "Vue Campus", href: "/campus-manager", icon: MapPin })
+    dynamicNavItems.splice(5, 0, { label: "Administration", href: "/super-admin", icon: ShieldCheck })
   }
 
   const handleLinkClick = () => {
