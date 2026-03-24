@@ -215,6 +215,7 @@ export default function PresencePage() {
   }
 
   const presentCount = classStudents.filter((s) => presenceMap.has(s.id)).length
+  const absentCount = classStudents.length - presentCount
   const totalCount = classStudents.length
 
   return (
@@ -223,6 +224,20 @@ export default function PresencePage() {
         title="Prise de Présence"
         description={`${currentClassId === 'morning' ? 'Matin' : 'Après-midi'} - ${format(selectedDate, "dd MMMM yyyy", { locale: fr })}`}
       >
+        <div className="flex items-center gap-4 mr-4">
+          <div className="flex flex-col items-end">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Présents</span>
+            <Badge variant="outline" className="bg-success/5 text-success border-success/20 font-mono text-xs">
+              {presentCount} / {totalCount}
+            </Badge>
+          </div>
+          <div className="flex flex-col items-end">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Absents</span>
+            <Badge variant="outline" className="bg-destructive/5 text-destructive border-destructive/20 font-mono text-xs">
+              {absentCount}
+            </Badge>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={loadRecords} title="Actualiser les données">
             <RefreshCw className="size-4" />

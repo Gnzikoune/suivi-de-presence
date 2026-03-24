@@ -43,6 +43,7 @@ import { fetchStudents, fetchRecords, fetchSettings, fetchProfile, fetchCohorts 
 import {
   getGlobalStats,
   getTodayClassSummary,
+  getTrendStats
 } from "@/lib/attendance-utils"
 import { StatsSkeleton } from "@/components/stats-skeleton"
 import type { Student, AttendanceRecord } from "@/lib/types"
@@ -114,6 +115,11 @@ export default function DashboardPage() {
 
   const todayAfternoon = useMemo(
     () => getTodayClassSummary(students || [], filteredRecords, "afternoon"),
+    [students, filteredRecords]
+  )
+  
+  const trends = useMemo(
+    () => getTrendStats(students || [], filteredRecords),
     [students, filteredRecords]
   )
 
@@ -233,6 +239,9 @@ export default function DashboardPage() {
                 subtitle={`Matin: ${todayMorning.present}/${todayMorning.total} | Apres-midi: ${todayAfternoon.present}/${todayAfternoon.total}`}
                 icon={UserCheck}
                 iconClassName="bg-success/10 text-success"
+                trend={trends.attendanceTrend.direction}
+                trendValue={trends.attendanceTrend.value}
+                trendLabel="vs semaine dernière"
               />
               <StatsCard
                 title="Absenteisme Moyen"
@@ -240,6 +249,9 @@ export default function DashboardPage() {
                 subtitle="Depuis le debut de la formation"
                 icon={TrendingDown}
                 iconClassName="bg-destructive/10 text-destructive"
+                trend={trends.absenteeismTrend.direction}
+                trendValue={trends.absenteeismTrend.value}
+                trendLabel="vs semaine dernière"
               />
               <StatsCard
                 title="Jours Écoulés"

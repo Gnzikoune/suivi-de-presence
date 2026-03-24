@@ -221,3 +221,62 @@ export function getTodayClassSummary(
     rate: total > 0 ? Math.round((present / total) * 1000) / 10 : 0,
   }
 }
+/**
+ * Calculate trend stats (Current Week vs Last Week)
+ */
+export function getTrendStats(
+  students: Student[],
+  records: AttendanceRecord[]
+): {
+  attendanceTrend: { value: string; direction: 'up' | 'down' | 'neutral' }
+  absenteeismTrend: { value: string; direction: 'up' | 'down' | 'neutral' }
+} {
+  const today = new Date()
+  const dayOfWeek = today.getDay() // 0 (Sun) to 6 (Sat)
+  
+  // Current week range (Monday to today)
+  const currentWeekStart = new Date(today)
+  currentWeekStart.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
+  currentWeekStart.setHours(0, 0, 0, 0)
+  
+  // Previous week range (Last Monday to Last Friday/Sunday)
+  const lastWeekStart = new Date(currentWeekStart)
+  lastWeekStart.setDate(currentWeekStart.getDate() - 7)
+  const lastWeekEnd = new Date(currentWeekStart)
+  lastWeekEnd.setDate(currentWeekStart.getDate() - 1)
+  lastWeekEnd.setHours(23, 59, 59, 999)
+
+  const getWeekRate = (start: Date, end: Date) => {
+    const weekRecords = records.filter(r => {
+      const d = new Date(r.date)
+      return d >= start && d <= end
+    })
+    if (weekRecords.length === 0) return null
+    const present = weekRecords.filter(r => r.present).length
+    return (present / weekRecords.length) * 100
+  }
+
+  const currentRate = getWeekRate(currentWeekStart, today)
+  const lastRate = getWeekRate(lastWeekStart, lastWeekEnd)
+
+  if (currentRate === null || lastRate === null) {
+    return {
+      attendanceTrend: { value: "0%", direction: "neutral" },
+      absenteeismTrend: { value: "0%", direction: "neutral" }
+    }
+  }
+
+  const diff = currentRate - lastRate
+  const absDiff = Math.abs(Math.round(diff * 10) / 10)
+  
+  return {
+    attendanceTrend: {
+      value: `${absDiff}%`,
+      direction: diff > 0.1 ? 'up' : diff < -0.1 ? 'down' : 'neutral'
+    },
+    absenteeismTrend: {
+      value: `${absDiff}%`,
+      direction: diff > 0.1 ? 'down' : diff < -0.1 ? 'up' : 'neutral' // Inverse for absenteeism
+    }
+  }
+}
