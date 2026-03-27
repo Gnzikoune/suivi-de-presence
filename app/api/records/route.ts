@@ -54,7 +54,10 @@ export async function GET(req: Request) {
       classId: r.class_id, 
       present: !!r.present,
       sessionId: r.session_id,
-      status: r.status
+      status: r.status,
+      justificationType: r.justification_type,
+      justificationText: r.justification_text,
+      justificationFilePath: r.justification_file_path
     })))
   } catch (error) {
     console.error("GET records error:", error)
@@ -95,8 +98,11 @@ export async function POST(req: Request) {
       date: date,
       class_id: classId,
       session_id: sessionId,
-      present: true,
-      status: p.status || 'present'
+      present: p.status === 'present' || p.status === 'late',
+      status: p.status || 'present',
+      justification_type: p.justificationType,
+      justification_text: p.justificationText,
+      justification_file_path: p.justificationFilePath
     }))
 
     if (recordsToInsert.length > 0) {

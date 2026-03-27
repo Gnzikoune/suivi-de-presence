@@ -63,22 +63,29 @@ export function getStudentStats(
   formationStart: string = FORMATION_START,
   formationEnd: string = FORMATION_END
 ): StudentStats {
-  const studentRecords = records.filter((r) => r.studentId === student.id)
-  const elapsedDays = getElapsedBusinessDays(formationStart, formationEnd).length
+  const businessDays = getBusinessDays(formationStart, format(parseISO(formationEnd), "yyyy-MM-dd"))
+  const businessDayStrSet = new Set(businessDays.map(d => format(d, "yyyy-MM-dd")))
+  
+  const studentRecords = records.filter((r) => r.studentId === student.id && businessDayStrSet.has(r.date))
+  const elapsedBusinessDays = getElapsedBusinessDays(formationStart, formationEnd)
   const daysPresent = studentRecords.filter((r) => r.present).length
-  const daysAbsent = studentRecords.filter((r) => !r.present).length
+  const daysExcused = studentRecords.filter((r) => r.status === 'excused').length
+  const daysAbsent = studentRecords.filter((r) => !r.present && r.status !== 'excused').length
+  
   const totalRecordedDays = studentRecords.length
-  const unrecordedDays = Math.max(0, elapsedDays - totalRecordedDays)
+  const elapsedDaysCount = elapsedBusinessDays.length
+  const unrecordedDays = Math.max(0, elapsedDaysCount - totalRecordedDays)
   const totalAbsent = daysAbsent + unrecordedDays
 
-  const presenceRate = elapsedDays > 0 ? (daysPresent / elapsedDays) * 100 : 0
-  const absenteeismRate = elapsedDays > 0 ? (totalAbsent / elapsedDays) * 100 : 0
+  const presenceRate = elapsedDaysCount > 0 ? (daysPresent / elapsedDaysCount) * 100 : 0
+  const absenteeismRate = elapsedDaysCount > 0 ? (totalAbsent / elapsedDaysCount) * 100 : 0
 
   return {
     student,
     daysPresent,
     daysAbsent: totalAbsent,
-    totalDays: elapsedDays,
+    daysExcused,
+    totalDays: elapsedDaysCount,
     presenceRate: Math.round(presenceRate * 10) / 10,
     absenteeismRate: Math.round(absenteeismRate * 10) / 10,
   }
@@ -92,7 +99,9 @@ export function getClassStats(
   records: AttendanceRecord[],
   classId: ClassId,
   formationStart: string = FORMATION_START,
-  formationEnd: string = FORMATION_END
+  formationEnd: string = FORMATION_END,
+  filterStart?: string,
+  filterEnd?: string
 ): {
   averagePresenceRate: number
   averageAbsenteeismRate: number
@@ -102,8 +111,12 @@ export function getClassStats(
   const classStudents = students.filter((s) => s.classId === classId)
   const classRecords = records.filter((r) => r.classId === classId)
 
+  // Use filter dates if provided, otherwise use formation dates
+  const effectiveStart = filterStart || formationStart
+  const effectiveEnd = filterEnd || formationEnd
+
   const studentStats = classStudents.map((s) => 
-    getStudentStats(s, classRecords, formationStart, formationEnd)
+    getStudentStats(s, classRecords, effectiveStart, effectiveEnd)
   )
 
   const averagePresenceRate =
@@ -148,7 +161,9 @@ export function getGlobalStats(
   students: Student[],
   records: AttendanceRecord[],
   formationStart: string = FORMATION_START,
-  formationEnd: string = FORMATION_END
+  formationEnd: string = FORMATION_END,
+  filterStart?: string,
+  filterEnd?: string
 ): {
   totalStudents: number
   morningStudents: number
@@ -160,8 +175,8 @@ export function getGlobalStats(
   elapsedDays: number
   totalDays: number
 } {
-  const morningStats = getClassStats(students, records, "morning", formationStart, formationEnd)
-  const afternoonStats = getClassStats(students, records, "afternoon", formationStart, formationEnd)
+  const morningStats = getClassStats(students, records, "morning", formationStart, formationEnd, filterStart, filterEnd)
+  const afternoonStats = getClassStats(students, records, "afternoon", formationStart, formationEnd, filterStart, filterEnd)
 
   const morningStudents = students.filter((s) => s.classId === "morning").length
   const afternoonStudents = students.filter((s) => s.classId === "afternoon").length
@@ -186,6 +201,9 @@ export function getGlobalStats(
             10
         ) / 10
       : 0
+
+  const effectiveStart = filterStart || formationStart
+  const effectiveEnd = filterEnd || formationEnd
 
   return {
     totalStudents,
@@ -247,13 +265,28 @@ export function getTrendStats(
   lastWeekEnd.setHours(23, 59, 59, 999)
 
   const getWeekRate = (start: Date, end: Date) => {
+    const startStr = format(start, "yyyy-MM-dd")
+    const endStr = format(end, "yyyy-MM-dd")
+    
+    // Better: use filteredRecords if we only want to look at specific records
+    // But here we need to know the total population
     const weekRecords = records.filter(r => {
-      const d = new Date(r.date)
-      return d >= start && d <= end
+      const d = r.date
+      return d >= startStr && d <= endStr
     })
-    if (weekRecords.length === 0) return null
+    
+    const businessDays = getBusinessDays(startStr, endStr)
+    const activeDaysCount = businessDays.filter(d => {
+      const dStr = format(d, "yyyy-MM-dd")
+      return records.some(r => r.date === dStr)
+    }).length
+    
+    if (activeDaysCount === 0 || students.length === 0) return null
+    
+    const totalPotential = students.length * activeDaysCount
     const present = weekRecords.filter(r => r.present).length
-    return (present / weekRecords.length) * 100
+    
+    return (present / totalPotential) * 100
   }
 
   const currentRate = getWeekRate(currentWeekStart, today)
