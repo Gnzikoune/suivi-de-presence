@@ -49,6 +49,9 @@ import { StatsSkeleton } from "@/components/stats-skeleton"
 import type { Student, AttendanceRecord } from "@/lib/types"
 import { FORMATION_START, FORMATION_END } from "@/lib/constants"
 import { useState } from "react"
+import { DateRangePicker } from "@/components/date-range-picker"
+import { DateRange } from "react-day-picker"
+import { startOfMonth, endOfDay } from "date-fns"
 
 const fetcher = async (url: string) => {
   const res = await fetch(url)
@@ -64,6 +67,10 @@ const fetcher = async (url: string) => {
 
 export default function DashboardPage() {
   const [selectedCohortId, setSelectedCohortId] = useState<string>("all")
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: undefined, // Default to all time (formation start)
+    to: new Date(),
+  })
   
   const { data: profile } = useSWR("profile", fetchProfile)
   const { data: cohorts } = useSWR("cohorts", fetchCohorts)
@@ -104,8 +111,15 @@ export default function DashboardPage() {
   }, [records, students, selectedCohortId])
 
   const globalStats = useMemo(
-    () => getGlobalStats(students || [], filteredRecords, formStart, formEnd),
-    [students, filteredRecords, formStart, formEnd]
+    () => getGlobalStats(
+      students || [], 
+      filteredRecords, 
+      formStart, 
+      formEnd,
+      dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined,
+      dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined
+    ),
+    [students, filteredRecords, formStart, formEnd, dateRange]
   )
 
   const todayMorning = useMemo(
@@ -167,21 +181,27 @@ export default function DashboardPage() {
         title="Tableau de bord"
         description={`${profile?.orga_name || "CENTRE DE FORMATION"} - ${format(new Date(), "dd MMMM yyyy", { locale: fr })}`}
       >
-        <div className="flex items-center gap-2">
-          <GraduationCap className="size-4 text-muted-foreground" />
-          <Select value={selectedCohortId} onValueChange={handleCohortChange}>
-            <SelectTrigger className="w-[240px] bg-background">
-              <SelectValue placeholder="Toutes les cohortes" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Toutes les cohortes</SelectItem>
-              {cohorts?.map((c: any) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name} {c.campuses?.name ? `(${c.campuses.name})` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-col sm:flex-row items-center gap-2">
+          <DateRangePicker 
+            date={dateRange} 
+            setDate={setDateRange} 
+          />
+          <div className="flex items-center gap-2">
+            <GraduationCap className="size-4 text-muted-foreground ml-2" />
+            <Select value={selectedCohortId} onValueChange={handleCohortChange}>
+              <SelectTrigger className="w-[200px] bg-background">
+                <SelectValue placeholder="Toutes les cohortes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes les cohortes</SelectItem>
+                {cohorts?.map((c: any) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name} {c.campuses?.name ? `(${c.campuses.name})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </PageHeader>
 

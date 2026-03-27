@@ -52,6 +52,9 @@ export interface AttendanceRecord {
   status: 'present' | 'absent' | 'late' | 'excused'
   present: boolean // Logical derived from status
   classId?: ClassId // Legacy compatibility
+  justificationType?: 'verbal' | 'written'
+  justificationText?: string
+  justificationFilePath?: string
 }
 
 export interface ClassInfo {
@@ -72,6 +75,7 @@ export interface StudentStats {
   student: Student
   daysPresent: number
   daysAbsent: number
+  daysExcused: number
   totalDays: number
   presenceRate: number
   absenteeismRate: number

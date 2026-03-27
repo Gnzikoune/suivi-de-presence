@@ -15,7 +15,9 @@ import {
   Sun,
   Moon,
   TrendingUp,
-  GraduationCap
+  GraduationCap,
+  MessageSquare,
+  FileText
 } from "lucide-react"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
@@ -44,6 +46,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
 import { Calendar } from "@/components/ui/calendar"
 import { fetchStudents, fetchRecords, saveAttendance, fetchProfile, fetchSettings, fetchSessions, createSession, fetchCohorts } from "@/lib/api-service"
 import { useSyncQueue } from "@/hooks/use-sync-queue"
@@ -61,12 +71,17 @@ export default function PresencePage() {
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [currentClassId, setCurrentClassId] = useState<ClassId>("morning")
-  const [presenceMap, setPresenceMap] = useState<Map<string, boolean>>(new Map())
+  const [statusMap, setStatusMap] = useState<Map<string, { status: string, justification?: string }>>(new Map())
   const [search, setSearch] = useState("")
   const [saving, setSaving] = useState(false)
   const [rapidMode, setRapidMode] = useState(false)
   
   const [currentSession, setCurrentSession] = useState<Session | null>(null)
+  
+  // Justification Modal State
+  const [justificationModalOpen, setJustificationModalOpen] = useState(false)
+  const [editingStudentId, setEditingStudentId] = useState<string | null>(null)
+  const [tempJustification, setTempJustification] = useState("")
 
   const dateStr = useMemo(() => format(selectedDate, "yyyy-MM-dd"), [selectedDate])
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -120,11 +135,14 @@ export default function PresencePage() {
     const res = await fetch(url)
     if (res.ok) {
       const records: AttendanceRecord[] = await res.json()
-      const map = new Map<string, boolean>()
+      const map = new Map<string, { status: string, justification?: string }>()
       records.forEach(r => {
-        if (r.present) map.set(r.studentId, true)
+        map.set(r.studentId, { 
+          status: r.status || (r.present ? 'present' : 'absent'),
+          justification: r.justificationText
+        })
       })
-      setPresenceMap(map)
+      setStatusMap(map)
     }
   }
 
@@ -155,12 +173,14 @@ export default function PresencePage() {
   }, [classStudents, search])
 
   const toggleStudent = (studentId: string) => {
-    setPresenceMap((prev) => {
+    setStatusMap((prev) => {
       const next = new Map(prev)
-      if (next.has(studentId)) {
-        next.delete(studentId)
+      const current = next.get(studentId)
+      
+      if (current?.status === 'present') {
+        next.set(studentId, { status: 'absent' })
       } else {
-        next.set(studentId, true)
+        next.set(studentId, { status: 'present' })
         if (rapidMode) {
           setSearch("")
           setTimeout(() => searchInputRef.current?.focus(), 10)
@@ -170,10 +190,42 @@ export default function PresencePage() {
     })
   }
 
+  const setStudentStatus = (studentId: string, status: string) => {
+    setStatusMap((prev) => {
+      const next = new Map(prev)
+      const existing = next.get(studentId)
+      next.set(studentId, { ...existing, status })
+      return next
+    })
+
+    if (status === 'excused') {
+      setEditingStudentId(studentId)
+      // Use functional state or a ref if needed, but here statusMap is already updated above
+      // For immediate use in modal, we can get it from the map we just updated or the current state
+      setTempJustification(statusMap.get(studentId)?.justification || "")
+      setJustificationModalOpen(true)
+    }
+  }
+
+  const handleSaveJustification = () => {
+    if (editingStudentId) {
+      setStatusMap((prev) => {
+        const next = new Map(prev)
+        const existing = next.get(editingStudentId)
+        if (existing) {
+          next.set(editingStudentId, { ...existing, justification: tempJustification })
+        }
+        return next
+      })
+    }
+    setJustificationModalOpen(false)
+    setEditingStudentId(null)
+  }
+
   const selectAll = () => {
-    const map = new Map<string, boolean>()
-    classStudents.forEach(s => map.set(s.id, true))
-    setPresenceMap(map)
+    const map = new Map<string, { status: string, justification?: string }>()
+    classStudents.forEach(s => map.set(s.id, { status: 'present' }))
+    setStatusMap(map)
   }
 
   const handleSave = async () => {
@@ -182,10 +234,16 @@ export default function PresencePage() {
       return
     }
 
-    const presentStudentsData = Array.from(presenceMap.keys()).map(studentId => ({
-      studentId,
-      status: 'present'
-    }))
+    // Save ALL students in the class, not just present ones
+    const allStudentsData = classStudents.map(student => {
+      const data = statusMap.get(student.id)
+      return {
+        studentId: student.id,
+        status: data?.status || 'absent',
+        justificationType: 'verbal',
+        justificationText: data?.justification || ""
+      }
+    })
 
     setSaving(true)
     try {
@@ -194,11 +252,11 @@ export default function PresencePage() {
           date: dateStr, 
           classId: currentClassId, 
           sessionId: currentSession?.id,
-          presentStudentsData 
+          presentStudentsData: allStudentsData 
         })
         return
       }
-      await saveAttendance(dateStr, currentClassId, presentStudentsData, currentSession?.id)
+      await saveAttendance(dateStr, currentClassId, allStudentsData, currentSession?.id)
       await loadRecords() // Refresh from DB to ensure sync
       toast.success("Présence enregistrée")
     } catch (error) {
@@ -207,15 +265,17 @@ export default function PresencePage() {
         date: dateStr, 
         classId: currentClassId, 
         sessionId: currentSession?.id,
-        presentStudentsData 
+        presentStudentsData: allStudentsData 
       }, true)
     } finally {
       setSaving(false)
     }
   }
 
-  const presentCount = classStudents.filter((s) => presenceMap.has(s.id)).length
-  const absentCount = classStudents.length - presentCount
+  const presentCount = classStudents.filter((s) => statusMap.get(s.id)?.status === 'present').length
+  const lateCount = classStudents.filter((s) => statusMap.get(s.id)?.status === 'late').length
+  const excusedCount = classStudents.filter((s) => statusMap.get(s.id)?.status === 'excused').length
+  const absentCount = classStudents.length - (presentCount + lateCount + excusedCount)
   const totalCount = classStudents.length
 
   return (
@@ -229,6 +289,12 @@ export default function PresencePage() {
             <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Présents</span>
             <Badge variant="outline" className="bg-success/5 text-success border-success/20 font-mono text-xs">
               {presentCount} / {totalCount}
+            </Badge>
+          </div>
+          <div className="flex flex-col items-end">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Retards</span>
+            <Badge variant="outline" className="bg-warning/5 text-warning border-warning/20 font-mono text-xs">
+              {lateCount}
             </Badge>
           </div>
           <div className="flex flex-col items-end">
@@ -380,24 +446,62 @@ export default function PresencePage() {
                 </TableRow>
               ) : (
                 filteredStudents.map((student) => {
-                  const isPresent = presenceMap.has(student.id)
+                  const studentData = statusMap.get(student.id)
+                  const status = studentData?.status || 'absent'
+                  const isPresent = status === 'present' || status === 'late'
+                  
                   return (
                     <TableRow 
                       key={student.id} 
-                      className={cn("cursor-pointer hover:bg-muted/30 transition-colors", isPresent && "bg-primary/5")}
-                      onClick={() => toggleStudent(student.id)}
+                      className={cn("hover:bg-muted/30 transition-colors", isPresent && "bg-primary/5")}
                     >
                       <TableCell className="text-center">
-                        <Checkbox checked={isPresent} onCheckedChange={() => toggleStudent(student.id)} />
+                        <Checkbox 
+                          checked={isPresent} 
+                          onCheckedChange={() => toggleStudent(student.id)} 
+                        />
                       </TableCell>
                       <TableCell className="font-bold">{student.lastName}</TableCell>
                       <TableCell className="hidden md:table-cell text-muted-foreground">{student.firstName}</TableCell>
                       <TableCell className="text-center">
-                        {isPresent ? (
-                          <Badge className="bg-success text-white">Présent</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-muted-foreground">Absent</Badge>
-                        )}
+                        <div className="flex items-center justify-center gap-2">
+                          <Select 
+                            value={status} 
+                            onValueChange={(v) => setStudentStatus(student.id, v)}
+                          >
+                            <SelectTrigger className={cn(
+                              "h-7 w-28 text-[10px] font-bold uppercase",
+                              status === 'present' && "bg-success/10 text-success border-success/20",
+                              status === 'late' && "bg-warning/10 text-warning border-warning/20",
+                              status === 'excused' && "bg-blue-500/10 text-blue-600 border-blue-500/20",
+                              status === 'absent' && "bg-destructive/10 text-destructive border-destructive/20"
+                            )}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="present">Présent</SelectItem>
+                              <SelectItem value="late">En retard</SelectItem>
+                              <SelectItem value="excused">Excusé</SelectItem>
+                              <SelectItem value="absent">Absent</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          
+                          {status === 'excused' && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="size-7" 
+                              onClick={() => {
+                                setEditingStudentId(student.id)
+                                setTempJustification(studentData?.justification || "")
+                                setJustificationModalOpen(true)
+                              }}
+                              title={studentData?.justification || "Ajouter une justification"}
+                            >
+                              <MessageSquare className={cn("size-3", studentData?.justification ? "text-primary" : "text-muted-foreground")} />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   )
@@ -407,6 +511,30 @@ export default function PresencePage() {
           </Table>
         </div>
       )}
+
+      {/* Justification Modal */}
+      <Dialog open={justificationModalOpen} onOpenChange={setJustificationModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Justifier l'absence</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Motif de l'absence</label>
+              <Textarea
+                placeholder="Ex: Malade, rendez-vous médical, problème de transport..."
+                value={tempJustification}
+                onChange={(e) => setTempJustification(e.target.value)}
+                className="min-h-[100px]"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setJustificationModalOpen(false)}>Annuler</Button>
+            <Button onClick={handleSaveJustification}>Enregistrer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </div>
     </div>
   )

@@ -13,7 +13,9 @@ import {
   User,
   Globe,
   BarChart3,
-  GraduationCap
+  GraduationCap,
+  XCircle,
+  FileText
 } from "lucide-react"
 import {
   Bar,
@@ -63,6 +65,8 @@ import {
 } from "@/lib/export-utils"
 import type { Student, AttendanceRecord, ClassId } from "@/lib/types"
 import { FORMATION_START, FORMATION_END } from "@/lib/constants"
+import { DateRangePicker } from "@/components/date-range-picker"
+import { DateRange } from "react-day-picker"
 
 // --- Individual Tab ---
 function IndividualTab({
@@ -70,11 +74,15 @@ function IndividualTab({
   records,
   formationStart,
   formationEnd,
+  filterStart,
+  filterEnd,
 }: {
   students: Student[]
   records: AttendanceRecord[]
   formationStart: string
   formationEnd: string
+  filterStart?: string
+  filterEnd?: string
 }) {
   const [selectedId, setSelectedId] = useState<string>("")
 
@@ -92,8 +100,8 @@ function IndividualTab({
   const stats = useMemo(() => {
     const student = students.find((s) => s.id === selectedId)
     if (!student) return null
-    return getStudentStats(student, records, formationStart, formationEnd)
-  }, [selectedId, students, records, formationStart, formationEnd])
+    return getStudentStats(student, records, filterStart || formationStart, filterEnd || formationEnd)
+  }, [selectedId, students, records, formationStart, formationEnd, filterStart, filterEnd])
 
   return (
     <div className="flex flex-col gap-6">
@@ -155,11 +163,11 @@ function IndividualTab({
               iconClassName="bg-primary/10 text-primary"
             />
             <StatsCard
-              title="Jours Absents"
-              value={stats.daysAbsent}
-              subtitle={`sur ${stats.totalDays} jours ecoules`}
-              icon={BarChart3}
-              iconClassName="bg-warning/10 text-warning-foreground"
+              title="Absences Justifiees"
+              value={stats.daysExcused}
+              subtitle="Avec justificatif fourni"
+              icon={FileText}
+              iconClassName="bg-blue-500/10 text-blue-600"
             />
           </div>
 
@@ -217,17 +225,21 @@ function ClassTab({
   records,
   formationStart,
   formationEnd,
+  filterStart,
+  filterEnd,
 }: {
   students: Student[]
   records: AttendanceRecord[]
   formationStart: string
   formationEnd: string
+  filterStart?: string
+  filterEnd?: string
 }) {
   const [selectedClass, setSelectedClass] = useState<ClassId>("morning")
 
   const classStats = useMemo(
-    () => getClassStats(students, records, selectedClass, formationStart, formationEnd),
-    [students, records, selectedClass, formationStart, formationEnd]
+    () => getClassStats(students, records, selectedClass, formationStart, formationEnd, filterStart, filterEnd),
+    [students, records, selectedClass, formationStart, formationEnd, filterStart, filterEnd]
   )
 
   const sortedByAbsence = useMemo(
@@ -369,6 +381,7 @@ function ClassTab({
                 <TableHead>Nom</TableHead>
                 <TableHead>Prenom</TableHead>
                 <TableHead className="text-center">Presents</TableHead>
+                <TableHead className="text-center">Abs. Justif.</TableHead>
                 <TableHead className="text-center">Absents</TableHead>
                 <TableHead className="text-center">Presence</TableHead>
                 <TableHead className="text-center">Absenteisme</TableHead>
@@ -378,7 +391,7 @@ function ClassTab({
               {sortedByAbsence.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="text-center py-8 text-muted-foreground"
                   >
                     Aucun apprenant dans cette classe.
@@ -396,6 +409,9 @@ function ClassTab({
                     <TableCell>{s.student.firstName}</TableCell>
                     <TableCell className="text-center">
                       {s.daysPresent}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {s.daysExcused}
                     </TableCell>
                     <TableCell className="text-center">
                       {s.daysAbsent}
@@ -445,15 +461,19 @@ function GlobalTab({
   records,
   formationStart,
   formationEnd,
+  filterStart,
+  filterEnd,
 }: {
   students: Student[]
   records: AttendanceRecord[]
   formationStart: string
   formationEnd: string
+  filterStart?: string
+  filterEnd?: string
 }) {
   const globalStats = useMemo(
-    () => getGlobalStats(students, records, formationStart, formationEnd),
-    [students, records, formationStart, formationEnd]
+    () => getGlobalStats(students, records, formationStart, formationEnd, filterStart, filterEnd),
+    [students, records, formationStart, formationEnd, filterStart, filterEnd]
   )
 
   const morningStudents = students.filter((s) => s.classId === "morning").length
@@ -777,6 +797,10 @@ function GlobalTab({
 // --- Main Page ---
 export default function StatistiquesPage() {
   const [selectedCohortId, setSelectedCohortId] = useState<string>("all")
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: undefined,
+    to: new Date(),
+  })
   
   const { data: profile } = useSWR("profile", fetchProfile)
   const { data: cohorts } = useSWR("cohorts", fetchCohorts)
@@ -799,36 +823,42 @@ export default function StatistiquesPage() {
     return records.filter(r => studentIds.has(r.studentId))
   }, [records, students, selectedCohortId])
 
-  const formStart = settings?.FORMATION_START || FORMATION_START
-  const formEnd = settings?.FORMATION_END || FORMATION_END
+  const cohortsData = cohorts as any[]
+  const selectedCohort = cohortsData?.find(c => c.id === selectedCohortId)
+  
+  const formStart = selectedCohort?.startDate || settings?.FORMATION_START || FORMATION_START
+  const formEnd = selectedCohort?.endDate || settings?.FORMATION_END || FORMATION_END
+
+  const filterStart = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined
+  const filterEnd = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined
 
   return (
     <div className="flex flex-col">
-      <PageHeader
-        title="Statistiques"
-        description={`${profile?.orga_name || "CENTRE DE FORMATION"} - Analyse globale de l'assiduité.`}
-      >
-        <div className="flex items-center gap-2">
-          <GraduationCap className="size-4 text-muted-foreground" />
-          <Select value={selectedCohortId} onValueChange={setSelectedCohortId}>
-            <SelectTrigger className="w-[180px] bg-background">
-              <SelectValue placeholder="Toutes les cohortes" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Toutes les cohortes</SelectItem>
-              {cohorts?.map((c: any) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}{c.campuses?.name ? ` - ${c.campuses.name}` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <PageHeader title="Statistiques" description="Analyses detaillees de la presence">
+        <div className="flex flex-col sm:flex-row items-center gap-2">
+          <DateRangePicker date={dateRange} setDate={setDateRange} />
+          <div className="flex items-center gap-2">
+            <GraduationCap className="size-4 text-muted-foreground ml-2" />
+            <Select value={selectedCohortId} onValueChange={setSelectedCohortId}>
+              <SelectTrigger className="w-[200px] bg-background">
+                <SelectValue placeholder="Toutes les cohortes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes les cohortes</SelectItem>
+                {cohortsData?.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </PageHeader>
 
-      <div className="flex flex-col gap-6 p-4 md:p-6 pb-20 max-w-5xl mx-auto w-full">
-        <Tabs defaultValue="individual" className="w-full">
-          <TabsList className="grid grid-cols-3 h-12 w-full md:w-[600px] p-1 bg-muted/50 backdrop-blur-sm border">
+      <div className="p-4 md:p-6 pb-20 max-w-7xl mx-auto w-full">
+        <Tabs defaultValue="individual" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3 max-w-md mx-auto">
             <TabsTrigger 
               value="individual"
               className="gap-2 rounded-md transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm"
@@ -856,24 +886,36 @@ export default function StatistiquesPage() {
           </TabsList>
 
           <TabsContent value="individual" className="mt-6">
-            {!students && !records ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <StatsSkeleton />
-                <StatsSkeleton />
-                <StatsSkeleton />
-                <StatsSkeleton />
-              </div>
-            ) : (
-              <IndividualTab students={students} records={filteredRecords} formationStart={formStart} formationEnd={formEnd} />
-            )}
+            <IndividualTab
+              students={students}
+              records={filteredRecords}
+              formationStart={formStart}
+              formationEnd={formEnd}
+              filterStart={filterStart}
+              filterEnd={filterEnd}
+            />
           </TabsContent>
 
           <TabsContent value="class" className="mt-6">
-            <ClassTab students={students} records={filteredRecords} formationStart={formStart} formationEnd={formEnd} />
+            <ClassTab
+              students={students}
+              records={filteredRecords}
+              formationStart={formStart}
+              formationEnd={formEnd}
+              filterStart={filterStart}
+              filterEnd={filterEnd}
+            />
           </TabsContent>
 
           <TabsContent value="global" className="mt-6">
-            <GlobalTab students={students} records={filteredRecords} formationStart={formStart} formationEnd={formEnd} />
+            <GlobalTab
+              students={students}
+              records={filteredRecords}
+              formationStart={formStart}
+              formationEnd={formEnd}
+              filterStart={filterStart}
+              filterEnd={filterEnd}
+            />
           </TabsContent>
         </Tabs>
       </div>
