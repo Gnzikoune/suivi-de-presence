@@ -14,6 +14,8 @@ import {
   ShieldCheck,
   TrendingUp,
   MapPin,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -46,7 +48,7 @@ const baseNavItems = [
 
 export function AppSidebar() {
   const pathname = usePathname()
-  const { setOpenMobile, isMobile } = useSidebar()
+  const { setOpenMobile, isMobile, toggleSidebar, state } = useSidebar()
   const { data: settings } = useSWR("settings", fetchSettings)
   const { data: profile } = useSWR("profile", fetchProfile)
   
@@ -131,6 +133,22 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="p-4 border-t border-border/50">
         <SidebarMenu>
+          <SidebarMenuItem className="hidden md:block mb-2">
+            <SidebarMenuButton
+              onClick={toggleSidebar}
+              className="text-muted-foreground hover:text-foreground"
+              tooltip={state === "expanded" ? "Réduire le menu" : "Afficher le menu"}
+            >
+              {state === "expanded" ? (
+                <ChevronLeft className="size-4" />
+              ) : (
+                <ChevronRight className="size-4" />
+              )}
+              <span className="font-medium text-xs">
+                {state === "expanded" ? "Réduire le menu" : "Afficher le menu"}
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={async () => {
