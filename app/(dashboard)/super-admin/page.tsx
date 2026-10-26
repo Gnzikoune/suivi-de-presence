@@ -59,9 +59,37 @@ export default function SuperAdminPage() {
   const { data: announcements, mutate: mutateAnnouncements } = useSWR("/api/super-admin/announcements", fetcher)
   const { data: campuses } = useSWR("/api/campuses", fetcher)
   const { data: cohorts } = useSWR("/api/cohorts", fetcher)
+  const { data: settings } = useSWR("/api/settings", fetcher)
+  const { data: profile } = useSWR("/api/profile", fetcher)
   
+  const [selectedAuditFormation, setSelectedAuditFormation] = useState<string>("")
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const { data: coachAttendance, mutate: mutateCoachAttendance } = useSWR(`/api/coach-presence?date=${selectedDate}`, fetcher)
+
+  // Métadonnées institutionnelles (Établissement, Formation, Campus, Émetteur)
+  const auditExportMetadata = useMemo(() => {
+    let resolvedFormation = "Formation Professionnelle"
+    if (selectedAuditFormation) {
+      resolvedFormation = formations?.find((f: any) => f.value === selectedAuditFormation)?.label || selectedAuditFormation
+    } else if (settings?.FORMATION_NAME) {
+      resolvedFormation = formations?.find((f: any) => f.value === settings.FORMATION_NAME)?.label || settings.FORMATION_NAME
+    } else if (profile?.formation_label || profile?.formation) {
+      resolvedFormation = profile.formation_label || profile.formation
+    } else if (Array.isArray(formations) && formations.length > 0) {
+      resolvedFormation = formations[0].label
+    }
+
+    const resolvedEstablishment = settings?.ORGA_NAME || profile?.orga_name || "Établissement de Formation"
+    const resolvedCampus = (profile?.memberships?.[0] as any)?.campuses?.name || (Array.isArray(campuses) && campuses.length > 0 ? campuses[0].name : "Campus Principal")
+    const resolvedAuthor = profile?.full_name || profile?.email || "Super Administrateur"
+
+    return {
+      establishmentName: resolvedEstablishment,
+      formationName: resolvedFormation,
+      campusName: resolvedCampus,
+      authorName: resolvedAuthor,
+    }
+  }, [selectedAuditFormation, formations, settings, profile, campuses])
 
   // Mois disponibles pour le filtrage et l'exportation d'audit (12 derniers mois)
   const availableAuditMonths = useMemo(() => {
@@ -87,7 +115,7 @@ export default function SuperAdminPage() {
       return
     }
     try {
-      exportAuditLogsToCSV(auditLogs, selectedAuditMonth)
+      exportAuditLogsToCSV(auditLogs, selectedAuditMonth, auditExportMetadata)
       toast.success("Journal d'audit exporté en CSV avec succès !")
     } catch (err: any) {
       console.error("Export CSV error:", err)
@@ -101,7 +129,7 @@ export default function SuperAdminPage() {
       return
     }
     try {
-      exportAuditLogsToExcel(auditLogs, selectedAuditMonth)
+      exportAuditLogsToExcel(auditLogs, selectedAuditMonth, auditExportMetadata)
       toast.success("Journal d'audit exporté en Excel (.xlsx) avec succès !")
     } catch (err: any) {
       console.error("Export Excel error:", err)
@@ -115,7 +143,7 @@ export default function SuperAdminPage() {
       return
     }
     try {
-      exportAuditLogsToPDF(auditLogs, selectedAuditMonth)
+      exportAuditLogsToPDF(auditLogs, selectedAuditMonth, auditExportMetadata)
       toast.success("Journal d'audit exporté en PDF avec succès !")
     } catch (err: any) {
       console.error("Export PDF error:", err)
@@ -631,6 +659,26 @@ export default function SuperAdminPage() {
                         </select>
                       </div>
 
+                      {/* Sélecteur de formation */}
+                      <div className="flex items-center gap-2 bg-muted/60 border rounded-lg px-2.5 py-1 text-xs text-muted-foreground focus-within:ring-1 focus-within:ring-primary">
+                        <BookOpen className="size-3.5" />
+                        <select
+                          value={selectedAuditFormation}
+                          onChange={(e) => setSelectedAuditFormation(e.target.value)}
+                          className="bg-transparent text-foreground text-xs font-medium outline-none cursor-pointer py-0.5 max-w-[170px] truncate"
+                          title="Formation associée au rapport"
+                        >
+                          <option value="">
+                            {auditExportMetadata.formationName ? `Formation : ${auditExportMetadata.formationName}` : "Toutes les formations"}
+                          </option>
+                          {Array.isArray(formations) && formations.map((f: any) => (
+                            <option key={f.value} value={f.value}>
+                              {f.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
                       {/* Bouton Actualiser */}
                       <Button
                         variant="outline"
@@ -651,7 +699,7 @@ export default function SuperAdminPage() {
                           onClick={handleExportAuditExcel}
                           disabled={!auditLogs || auditLogs.length === 0}
                           className="h-8 gap-1.5 text-xs font-medium hover:text-emerald-600 hover:border-emerald-300 dark:hover:text-emerald-400"
-                          title="Télécharger en fichier Excel natif (.xlsx) avec colonnes calibrées"
+                          title="Télécharger en fichier Excel natif (.xlsx) avec en-tête institutionnel"
                         >
                           <FileSpreadsheet className="size-3.5 text-emerald-600 dark:text-emerald-400" />
                           <span>Excel</span>
@@ -675,7 +723,7 @@ export default function SuperAdminPage() {
                           onClick={handleExportAuditPDF}
                           disabled={!auditLogs || auditLogs.length === 0}
                           className="h-8 gap-1.5 text-xs font-medium hover:text-rose-600 hover:border-rose-300 dark:hover:text-rose-400"
-                          title="Télécharger en document PDF officiel"
+                          title="Télécharger en document PDF officiel aux couleurs de l'établissement"
                         >
                           <FileText className="size-3.5 text-rose-600 dark:text-rose-400" />
                           <span>PDF</span>
@@ -685,18 +733,30 @@ export default function SuperAdminPage() {
                   </CardHeader>
 
                   <CardContent className="pt-5">
-                    {/* Bandeau d'information sur le filtre actif */}
-                    <div className="flex items-center justify-between text-xs text-muted-foreground mb-4 pb-2 border-b border-dashed">
-                      <span>
-                        Période :{" "}
-                        <strong className="text-foreground">
-                          {selectedAuditMonth
-                            ? availableAuditMonths.find((m) => m.value === selectedAuditMonth)?.label
-                            : "150 dernières actions"}
-                        </strong>
-                      </span>
-                      <span>
-                        {Array.isArray(auditLogs) ? `${auditLogs.length} événement(s) trouvé(s)` : "Chargement..."}
+                    {/* Bandeau d'information sur le filtre actif et le cadre de l'établissement */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-muted-foreground mb-4 pb-2.5 border-b border-dashed">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span>
+                          Période :{" "}
+                          <strong className="text-foreground">
+                            {selectedAuditMonth
+                              ? availableAuditMonths.find((m) => m.value === selectedAuditMonth)?.label
+                              : "150 dernières actions"}
+                          </strong>
+                        </span>
+                        <span className="text-muted-foreground/40">•</span>
+                        <span>
+                          Établissement :{" "}
+                          <strong className="text-foreground">{auditExportMetadata.establishmentName}</strong>
+                        </span>
+                        <span className="text-muted-foreground/40">•</span>
+                        <span>
+                          Formation :{" "}
+                          <strong className="text-foreground">{auditExportMetadata.formationName}</strong>
+                        </span>
+                      </div>
+                      <span className="font-mono text-[11px] bg-muted px-2 py-0.5 rounded-full shrink-0">
+                        {Array.isArray(auditLogs) ? `${auditLogs.length} action(s)` : "Chargement..."}
                       </span>
                     </div>
 
