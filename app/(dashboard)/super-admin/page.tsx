@@ -2,7 +2,7 @@
 
 import { Skeleton } from "@/components/ui/skeleton"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import useSWR from "swr"
 import { 
   Users, 
@@ -17,7 +17,10 @@ import {
   Trash2,
   Calendar,
   CheckCircle2,
-  UserCheck
+  UserCheck,
+  FileSpreadsheet,
+  FileText,
+  Download
 } from "lucide-react"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -29,6 +32,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { ConfirmModal } from "@/components/confirm-modal"
 import { FormationForm } from "@/components/formation-form"
 import { InviteUserForm } from "@/components/invite-user-form"
+import { exportAuditLogsToCSV, exportAuditLogsToPDF } from "@/lib/export-audit"
 
 const fetcher = async (url: string) => {
   const res = await fetch(url)
@@ -47,13 +51,63 @@ export default function SuperAdminPage() {
   const { data: stats, mutate: mutateStats } = useSWR("/api/super-admin/stats", fetcher)
   const { data: formations, mutate: mutateFormations } = useSWR("/api/super-admin/formations", fetcher)
   const { data: users, error: usersError, mutate: mutateUsers } = useSWR("/api/super-admin/users", fetcher)
-  const { data: auditLogs, mutate: mutateAudit } = useSWR("/api/super-admin/audit", fetcher)
+  const [selectedAuditMonth, setSelectedAuditMonth] = useState<string>("")
+  const auditQueryUrl = selectedAuditMonth
+    ? `/api/super-admin/audit?month=${selectedAuditMonth}`
+    : "/api/super-admin/audit"
+  const { data: auditLogs, mutate: mutateAudit, isValidating: isAuditValidating } = useSWR(auditQueryUrl, fetcher)
   const { data: announcements, mutate: mutateAnnouncements } = useSWR("/api/super-admin/announcements", fetcher)
   const { data: campuses } = useSWR("/api/campuses", fetcher)
   const { data: cohorts } = useSWR("/api/cohorts", fetcher)
   
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const { data: coachAttendance, mutate: mutateCoachAttendance } = useSWR(`/api/coach-presence?date=${selectedDate}`, fetcher)
+
+  // Mois disponibles pour le filtrage et l'exportation d'audit (12 derniers mois)
+  const availableAuditMonths = useMemo(() => {
+    const months: { value: string; label: string }[] = []
+    const now = new Date()
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, "0")
+      const value = `${year}-${month}`
+      const label = d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+      months.push({
+        value,
+        label: label.charAt(0).toUpperCase() + label.slice(1),
+      })
+    }
+    return months
+  }, [])
+
+  const handleExportAuditCSV = () => {
+    if (!auditLogs || auditLogs.length === 0) {
+      toast.error("Aucune entrée d'audit à exporter pour la période sélectionnée.")
+      return
+    }
+    try {
+      exportAuditLogsToCSV(auditLogs, selectedAuditMonth)
+      toast.success("Journal d'audit exporté en CSV avec succès !")
+    } catch (err: any) {
+      console.error("Export CSV error:", err)
+      toast.error("Erreur lors de la génération du fichier CSV.")
+    }
+  }
+
+  const handleExportAuditPDF = () => {
+    if (!auditLogs || auditLogs.length === 0) {
+      toast.error("Aucune entrée d'audit à exporter pour la période sélectionnée.")
+      return
+    }
+    try {
+      exportAuditLogsToPDF(auditLogs, selectedAuditMonth)
+      toast.success("Journal d'audit exporté en PDF avec succès !")
+    } catch (err: any) {
+      console.error("Export PDF error:", err)
+      toast.error("Erreur lors de la génération du document PDF.")
+    }
+  }
   
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null)
   const [isAddingFormation, setIsAddingFormation] = useState(false)
@@ -528,17 +582,98 @@ export default function SuperAdminPage() {
             </TabsContent>
 
             <TabsContent key="audit" value="audit" className="mt-6 border-none p-0 outline-none">
-{/* ... slide confirm modals in at the end of content ... */}
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
               >
                 <Card className="shadow-sm">
-                  <CardHeader>
-                    <CardTitle>Journal d'audit</CardTitle>
-                    <CardDescription>Actions récentes effectuées par l'administration.</CardDescription>
+                  <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
+                    <div>
+                      <CardTitle className="text-xl flex items-center gap-2">
+                        <ShieldCheck className="size-5 text-primary" />
+                        Journal d'audit
+                      </CardTitle>
+                      <CardDescription className="mt-1">
+                        Historique, traçabilité et exportation des actions administratives.
+                      </CardDescription>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Sélecteur de mois */}
+                      <div className="flex items-center gap-2 bg-muted/60 border rounded-lg px-2.5 py-1 text-xs text-muted-foreground focus-within:ring-1 focus-within:ring-primary">
+                        <Calendar className="size-3.5" />
+                        <select
+                          value={selectedAuditMonth}
+                          onChange={(e) => setSelectedAuditMonth(e.target.value)}
+                          className="bg-transparent text-foreground text-xs font-medium outline-none cursor-pointer py-0.5"
+                          title="Filtrer par mois"
+                        >
+                          <option value="">Tous les événements récents</option>
+                          {availableAuditMonths.map((m) => (
+                            <option key={m.value} value={m.value}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Bouton Actualiser */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => mutateAudit()}
+                        disabled={isAuditValidating}
+                        title="Actualiser le journal"
+                        className="h-8 w-8 p-0"
+                      >
+                        <RefreshCcw className={`size-3.5 ${isAuditValidating ? "animate-spin" : ""}`} />
+                      </Button>
+
+                      {/* Boutons d'exportation */}
+                      <div className="flex items-center gap-1.5 border-l pl-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleExportAuditCSV}
+                          disabled={!auditLogs || auditLogs.length === 0}
+                          className="h-8 gap-1.5 text-xs font-medium hover:text-emerald-600 hover:border-emerald-300 dark:hover:text-emerald-400"
+                          title="Exporter en fichier CSV (tableur / Excel)"
+                        >
+                          <FileSpreadsheet className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                          <span>CSV</span>
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleExportAuditPDF}
+                          disabled={!auditLogs || auditLogs.length === 0}
+                          className="h-8 gap-1.5 text-xs font-medium hover:text-rose-600 hover:border-rose-300 dark:hover:text-rose-400"
+                          title="Exporter en document PDF officiel"
+                        >
+                          <FileText className="size-3.5 text-rose-600 dark:text-rose-400" />
+                          <span>PDF</span>
+                        </Button>
+                      </div>
+                    </div>
                   </CardHeader>
-                  <CardContent>
+
+                  <CardContent className="pt-5">
+                    {/* Bandeau d'information sur le filtre actif */}
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mb-4 pb-2 border-b border-dashed">
+                      <span>
+                        Période :{" "}
+                        <strong className="text-foreground">
+                          {selectedAuditMonth
+                            ? availableAuditMonths.find((m) => m.value === selectedAuditMonth)?.label
+                            : "150 dernières actions"}
+                        </strong>
+                      </span>
+                      <span>
+                        {Array.isArray(auditLogs) ? `${auditLogs.length} événement(s) trouvé(s)` : "Chargement..."}
+                      </span>
+                    </div>
+
                     <div className="space-y-4">
                       {Array.isArray(auditLogs) && auditLogs.map((log: any) => (
                         <div key={log.id} className="flex items-start gap-4 p-4 rounded-xl border bg-card hover:border-primary/20 transition-all">
@@ -548,7 +683,7 @@ export default function SuperAdminPage() {
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-1">
                               <span className="font-bold text-sm tracking-tight">{log.actor_name}</span>
-                              <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                              <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full font-mono">
                                 {new Date(log.created_at).toLocaleString('fr-FR')}
                               </span>
                             </div>
@@ -564,7 +699,7 @@ export default function SuperAdminPage() {
                       ))}
                       {Array.isArray(auditLogs) && auditLogs.length === 0 && (
                         <div className="py-20 text-center text-muted-foreground italic border-2 border-dashed rounded-xl">
-                          Aucun log d'audit disponible.
+                          Aucun log d'audit disponible pour la période sélectionnée.
                         </div>
                       )}
                       {!auditLogs && (
