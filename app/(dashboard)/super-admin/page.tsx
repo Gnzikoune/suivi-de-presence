@@ -32,7 +32,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { ConfirmModal } from "@/components/confirm-modal"
 import { FormationForm } from "@/components/formation-form"
 import { InviteUserForm } from "@/components/invite-user-form"
-import { exportAuditLogsToCSV, exportAuditLogsToPDF } from "@/lib/export-audit"
+import { exportAuditLogsToCSV, exportAuditLogsToExcel, exportAuditLogsToPDF } from "@/lib/export-audit"
 
 const fetcher = async (url: string) => {
   const res = await fetch(url)
@@ -92,6 +92,20 @@ export default function SuperAdminPage() {
     } catch (err: any) {
       console.error("Export CSV error:", err)
       toast.error("Erreur lors de la génération du fichier CSV.")
+    }
+  }
+
+  const handleExportAuditExcel = () => {
+    if (!auditLogs || auditLogs.length === 0) {
+      toast.error("Aucune entrée d'audit à exporter pour la période sélectionnée.")
+      return
+    }
+    try {
+      exportAuditLogsToExcel(auditLogs, selectedAuditMonth)
+      toast.success("Journal d'audit exporté en Excel (.xlsx) avec succès !")
+    } catch (err: any) {
+      console.error("Export Excel error:", err)
+      toast.error("Erreur lors de la génération du fichier Excel.")
     }
   }
 
@@ -634,12 +648,24 @@ export default function SuperAdminPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={handleExportAuditCSV}
+                          onClick={handleExportAuditExcel}
                           disabled={!auditLogs || auditLogs.length === 0}
                           className="h-8 gap-1.5 text-xs font-medium hover:text-emerald-600 hover:border-emerald-300 dark:hover:text-emerald-400"
-                          title="Exporter en fichier CSV (tableur / Excel)"
+                          title="Télécharger en fichier Excel natif (.xlsx) avec colonnes calibrées"
                         >
                           <FileSpreadsheet className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                          <span>Excel</span>
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleExportAuditCSV}
+                          disabled={!auditLogs || auditLogs.length === 0}
+                          className="h-8 gap-1.5 text-xs font-medium hover:text-teal-600 hover:border-teal-300 dark:hover:text-teal-400"
+                          title="Télécharger en CSV optimisé pour Excel (point-virgule et BOM UTF-8)"
+                        >
+                          <Download className="size-3.5 text-teal-600 dark:text-teal-400" />
                           <span>CSV</span>
                         </Button>
 
@@ -649,7 +675,7 @@ export default function SuperAdminPage() {
                           onClick={handleExportAuditPDF}
                           disabled={!auditLogs || auditLogs.length === 0}
                           className="h-8 gap-1.5 text-xs font-medium hover:text-rose-600 hover:border-rose-300 dark:hover:text-rose-400"
-                          title="Exporter en document PDF officiel"
+                          title="Télécharger en document PDF officiel"
                         >
                           <FileText className="size-3.5 text-rose-600 dark:text-rose-400" />
                           <span>PDF</span>
