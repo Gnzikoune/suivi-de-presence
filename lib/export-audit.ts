@@ -225,17 +225,45 @@ export function exportAuditLogsToExcel(
 }
 
 /**
+ * Charge le véritable logo de la plateforme (/Logo.png) ou un logo personnalisé sous forme de Data URL Base64
+ */
+async function loadLogoBase64(customUrl?: string): Promise<string | null> {
+  const urlsToTry = [customUrl, "/Logo.png"].filter(Boolean) as string[]
+
+  for (const url of urlsToTry) {
+    try {
+      const res = await fetch(url)
+      if (!res.ok) continue
+      const blob = await res.blob()
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      })
+      if (dataUrl && dataUrl.startsWith("data:image/")) {
+        return dataUrl
+      }
+    } catch {
+      // Tenter l'URL suivante en cas d'erreur réseau
+    }
+  }
+  return null
+}
+
+/**
  * Exporte les logs d'audit au format PDF haut de gamme et ultra-professionnel
+ * - Vrai logo officiel de la plateforme (/Logo.png)
  * - Couleurs officielles de l'application (Slate 900, Indigo 600, nuances neutres élégantes)
  * - Mention de l'établissement, de la formation, du campus et de l'auteur de l'export
  * - Cartouche de métadonnées institutionnelles structurées
  * - Tableau d'audit paginé avec filtres et footer officiel numéroté
  */
-export function exportAuditLogsToPDF(
+export async function exportAuditLogsToPDF(
   logs: AuditLogItem[],
   month?: string | null,
   metadata?: AuditExportMetadata
-): void {
+): Promise<void> {
   const doc = new jsPDF({
     orientation: "landscape",
     unit: "mm",
@@ -259,6 +287,9 @@ export function exportAuditLogsToPDF(
   // Calcul du nombre d'acteurs distincts
   const uniqueActors = new Set(logs.map((l) => l.actor_name || "Système")).size
 
+  // Chargement asynchrone du vrai logo de la plateforme (/Logo.png)
+  const logoDataUrl = await loadLogoBase64(metadata?.logoUrl)
+
   // ==========================================
   // 1. BANDEAU SUPÉRIEUR BRANDÉ (Slate 900 & Indigo 600)
   // ==========================================
@@ -270,20 +301,38 @@ export function exportAuditLogsToPDF(
   doc.setFillColor(15, 23, 42) // #0F172A Slate 900
   doc.rect(0, 3.5, 297, 25.5, "F")
 
-  // Écusson institutionnel vectoriel "SP" (Suivi de Présence)
-  doc.setFillColor(79, 70, 229)
-  doc.roundedRect(14, 7, 16, 16, 2.5, 2.5, "F")
-  doc.setTextColor(255, 255, 255)
-  doc.setFontSize(10.5)
-  doc.setFont("helvetica", "bold")
-  doc.text("SP", 18.5, 17.5)
+  // Affichage du vrai logo officiel de la plateforme
+  if (logoDataUrl) {
+    // Fond blanc arrondi pour préserver la fidélité des couleurs et contrastes du logo
+    doc.setFillColor(255, 255, 255)
+    doc.roundedRect(14, 6.5, 19, 19, 2, 2, "F")
+    try {
+      doc.addImage(logoDataUrl, "PNG", 15, 7.5, 17, 17)
+    } catch {
+      // Fallback au monogramme si problème d'intégration du format
+      doc.setFillColor(79, 70, 229)
+      doc.roundedRect(14, 7, 16, 16, 2.5, 2.5, "F")
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(10.5)
+      doc.setFont("helvetica", "bold")
+      doc.text("SP", 18.5, 17.5)
+    }
+  } else {
+    // Fallback au monogramme si non trouvé
+    doc.setFillColor(79, 70, 229)
+    doc.roundedRect(14, 7, 16, 16, 2.5, 2.5, "F")
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(10.5)
+    doc.setFont("helvetica", "bold")
+    doc.text("SP", 18.5, 17.5)
+  }
 
   // Nom de l'établissement (en majuscules, clair et percutant)
   doc.setFontSize(13)
   doc.setFont("helvetica", "bold")
   doc.setTextColor(255, 255, 255)
   const displayEstName = establishmentName.length > 45 ? establishmentName.substring(0, 42) + "..." : establishmentName
-  doc.text(displayEstName.toUpperCase(), 34, 14)
+  doc.text(displayEstName.toUpperCase(), 37, 14)
 
   // Sous-titre officiel avec la formation
   doc.setFontSize(8.5)
@@ -291,7 +340,7 @@ export function exportAuditLogsToPDF(
   doc.setTextColor(199, 210, 254) // Indigo 200
   const displaySub = `JOURNAL OFFICIEL D'AUDIT SYSTÈME & TRAÇABILITÉ • ${formationName}`
   const clippedSub = displaySub.length > 75 ? displaySub.substring(0, 72) + "..." : displaySub
-  doc.text(clippedSub, 34, 21)
+  doc.text(clippedSub, 37, 21)
 
   // Badge officiel de certification à droite
   doc.setFillColor(30, 41, 59) // Slate 800

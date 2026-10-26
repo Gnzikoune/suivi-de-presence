@@ -137,13 +137,13 @@ export default function SuperAdminPage() {
     }
   }
 
-  const handleExportAuditPDF = () => {
+  const handleExportAuditPDF = async () => {
     if (!auditLogs || auditLogs.length === 0) {
       toast.error("Aucune entrée d'audit à exporter pour la période sélectionnée.")
       return
     }
     try {
-      exportAuditLogsToPDF(auditLogs, selectedAuditMonth, auditExportMetadata)
+      await exportAuditLogsToPDF(auditLogs, selectedAuditMonth, auditExportMetadata)
       toast.success("Journal d'audit exporté en PDF avec succès !")
     } catch (err: any) {
       console.error("Export PDF error:", err)
