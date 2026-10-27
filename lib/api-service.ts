@@ -1,25 +1,65 @@
 import type { Student, AttendanceRecord, ClassId, Cohort, Session, UserMembership } from "./types"
+import {
+  cacheStudents,
+  getCachedStudents,
+  cacheCohorts,
+  getCachedCohorts,
+  cacheSessions,
+  getCachedSessions,
+  cacheRecords,
+  getCachedRecords,
+  cacheProfile,
+  getCachedProfile,
+  isNetworkAvailable
+} from "./offline-storage"
 
 export async function fetchStudents(cohortId?: string): Promise<Student[]> {
-  const url = cohortId ? `/api/students?cohortId=${cohortId}` : "/api/students"
-  const res = await fetch(url)
-  if (!res.ok) throw new Error("Failed to fetch students")
-  return res.json()
+  if (!isNetworkAvailable()) {
+    return getCachedStudents(cohortId)
+  }
+  try {
+    const url = cohortId ? `/api/students?cohortId=${cohortId}` : "/api/students"
+    const res = await fetch(url)
+    if (!res.ok) throw new Error("Failed to fetch students")
+    const data = await res.json()
+    cacheStudents(data, cohortId)
+    return data
+  } catch (err) {
+    console.warn("[api-service] Network error fetching students, using cache fallback", err)
+    const cached = getCachedStudents(cohortId)
+    if (cached.length > 0) return cached
+    throw err
+  }
 }
 
 export async function fetchRecords(date?: string, classId?: string, sessionId?: string, cohortId?: string): Promise<AttendanceRecord[]> {
-  let url = "/api/records"
-  const params = new URLSearchParams()
-  if (date) params.append("date", date)
-  if (classId) params.append("classId", classId)
-  if (sessionId) params.append("sessionId", sessionId)
-  if (cohortId) params.append("cohortId", cohortId)
-  
-  if (params.toString()) url += `?${params.toString()}`
-  
-  const res = await fetch(url)
-  if (!res.ok) throw new Error("Failed to fetch records")
-  return res.json()
+  if (!isNetworkAvailable() && date) {
+    return getCachedRecords(date, classId, cohortId)
+  }
+  try {
+    let url = "/api/records"
+    const params = new URLSearchParams()
+    if (date) params.append("date", date)
+    if (classId) params.append("classId", classId)
+    if (sessionId) params.append("sessionId", sessionId)
+    if (cohortId) params.append("cohortId", cohortId)
+    
+    if (params.toString()) url += `?${params.toString()}`
+    
+    const res = await fetch(url)
+    if (!res.ok) throw new Error("Failed to fetch records")
+    const data = await res.json()
+    if (date) {
+      cacheRecords(data, date, classId, cohortId)
+    }
+    return data
+  } catch (err) {
+    console.warn("[api-service] Network error fetching records, using cache fallback", err)
+    if (date) {
+      return getCachedRecords(date, classId, cohortId)
+    }
+    return []
+  }
 }
 
 export async function addStudent(firstName: string, lastName: string, classId: ClassId, email?: string, cohortId?: string): Promise<Student> {
@@ -50,28 +90,49 @@ export async function deleteStudent(id: string): Promise<void> {
 }
 
 export async function fetchCohorts(): Promise<Cohort[]> {
-  const res = await fetch("/api/cohorts") 
-  // Note: I'll need to create this API or update students/formations to return cohorts
-  // For now, let's assume it exists or we use a fallback
-  if (!res.ok) return [] 
-  return res.json()
+  if (!isNetworkAvailable()) {
+    return getCachedCohorts()
+  }
+  try {
+    const res = await fetch("/api/cohorts") 
+    if (!res.ok) {
+      const cached = getCachedCohorts()
+      return cached.length > 0 ? cached : []
+    }
+    const data = await res.json()
+    cacheCohorts(data)
+    return data
+  } catch (err) {
+    console.warn("[api-service] Network error fetching cohorts, using cache fallback", err)
+    return getCachedCohorts()
+  }
 }
 
 export async function fetchSessions(date?: string): Promise<Session[]> {
-  const url = date ? `/api/sessions?date=${date}` : "/api/sessions"
-  const res = await fetch(url)
-  if (!res.ok) throw new Error("Failed to fetch sessions")
-  const data = await res.json()
-  return (data || []).map((s: any) => ({
-    id: s.id,
-    cohortId: s.cohort_id,
-    teacherId: s.teacher_id,
-    date: s.date,
-    startTime: s.start_time,
-    endTime: s.end_time,
-    title: s.title,
-    createdAt: s.created_at
-  }))
+  if (!isNetworkAvailable()) {
+    return getCachedSessions(date)
+  }
+  try {
+    const url = date ? `/api/sessions?date=${date}` : "/api/sessions"
+    const res = await fetch(url)
+    if (!res.ok) throw new Error("Failed to fetch sessions")
+    const data = await res.json()
+    const sessions = (data || []).map((s: any) => ({
+      id: s.id,
+      cohortId: s.cohort_id,
+      teacherId: s.teacher_id,
+      date: s.date,
+      startTime: s.start_time,
+      endTime: s.end_time,
+      title: s.title,
+      createdAt: s.created_at
+    }))
+    cacheSessions(sessions, date)
+    return sessions
+  } catch (err) {
+    console.warn("[api-service] Network error fetching sessions, using cache fallback", err)
+    return getCachedSessions(date)
+  }
 }
 
 export async function createSession(data: { cohortId: string, date: string, title: string, startTime?: string, endTime?: string }): Promise<Session> {
@@ -138,9 +199,22 @@ export async function fetchProfile(): Promise<{
   formation_label?: string,
   memberships?: UserMembership[]
 }> {
-  const res = await fetch("/api/profile")
-  if (!res.ok) throw new Error("Failed to fetch profile")
-  return res.json()
+  if (!isNetworkAvailable()) {
+    const cached = getCachedProfile()
+    if (cached) return cached
+  }
+  try {
+    const res = await fetch("/api/profile")
+    if (!res.ok) throw new Error("Failed to fetch profile")
+    const data = await res.json()
+    cacheProfile(data)
+    return data
+  } catch (err) {
+    console.warn("[api-service] Network error fetching profile, using cache fallback", err)
+    const cached = getCachedProfile()
+    if (cached) return cached
+    throw err
+  }
 }
 
 export async function updateProfile(data: { 

@@ -8,7 +8,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { motion, AnimatePresence } from "framer-motion"
 import { useRouter, usePathname } from "next/navigation"
 import { createClient } from "@/lib/supabase-browser"
-import { Session, AuthChangeEvent } from "@supabase/supabase-js"
+import { Session } from "@supabase/supabase-js"
+import {
+  saveOfflineUser,
+  getOfflineUser,
+  clearOfflineUser,
+  isNetworkAvailable
+} from "@/lib/offline-storage"
 
 interface AuthGateProps {
   children: React.ReactNode
@@ -26,15 +32,96 @@ export function AuthGate({ children }: AuthGateProps) {
 
     const checkSession = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (mounted && user) {
-          // If user exists, we get the current session for the UI state
-          const { data: { session: currentSession } } = await supabase.auth.getSession()
-          setSession(currentSession)
+        // 1. First get local session from browser storage (works offline)
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+        
+        // Handle invalid refresh token in getSession
+        if (sessionError && (sessionError.message?.toLowerCase().includes("refresh token") || (sessionError as any)?.code === "refresh_token_not_found")) {
+          console.warn("[AuthGate] Stale refresh token detected in storage. Cleaning up local session.")
+          await supabase.auth.signOut({ scope: "local" }).catch(() => {})
+          clearOfflineUser()
+          if (mounted) {
+            setSession(null)
+            setChecking(false)
+          }
+          return
         }
+
+        const localSession = sessionData?.session || null
+        const cachedOfflineUser = getOfflineUser()
+
+        if (!isNetworkAvailable()) {
+          // OFFLINE MODE: Rely on cached local session or offline user record
+          if (localSession || cachedOfflineUser) {
+            if (mounted) {
+              setSession(localSession || ({ user: cachedOfflineUser } as any))
+              setChecking(false)
+            }
+            return
+          }
+        }
+
+        // ONLINE: Verify with server
+        try {
+          const { data: userData, error: userError } = await supabase.auth.getUser()
+
+          // Check if server rejected stale refresh token
+          if (userError && (userError.message?.toLowerCase().includes("refresh token") || (userError as any)?.code === "refresh_token_not_found")) {
+            console.warn("[AuthGate] Server reported invalid refresh token. Resetting expired session.")
+            await supabase.auth.signOut({ scope: "local" }).catch(() => {})
+            clearOfflineUser()
+            if (mounted) {
+              setSession(null)
+              setChecking(false)
+            }
+            return
+          }
+
+          const user = userData?.user
+          if (mounted && user) {
+            saveOfflineUser({
+              id: user.id,
+              email: user.email,
+              cachedAt: Date.now()
+            })
+            setSession(localSession)
+          } else if (mounted && cachedOfflineUser && !isNetworkAvailable()) {
+            setSession({ user: cachedOfflineUser } as any)
+          }
+        } catch (netErr: any) {
+          if (netErr?.message?.toLowerCase().includes("refresh token") || netErr?.code === "refresh_token_not_found") {
+            console.warn("[AuthGate] Network caught invalid refresh token. Resetting expired session.")
+            await supabase.auth.signOut({ scope: "local" }).catch(() => {})
+            clearOfflineUser()
+            if (mounted) {
+              setSession(null)
+              setChecking(false)
+            }
+            return
+          }
+          console.warn("[AuthGate] Network check failed, fallback to local session", netErr)
+          if (localSession || cachedOfflineUser) {
+            if (mounted) setSession(localSession || ({ user: cachedOfflineUser } as any))
+          }
+        }
+        
         if (mounted) setChecking(false)
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.message?.toLowerCase().includes("refresh token") || err?.code === "refresh_token_not_found") {
+          await supabase.auth.signOut({ scope: "local" }).catch(() => {})
+          clearOfflineUser()
+          if (mounted) {
+            setSession(null)
+            setChecking(false)
+          }
+          return
+        }
         console.error("Auth session check error:", err)
+        // Fallback to offline user if available
+        const offlineUser = getOfflineUser()
+        if (offlineUser && mounted) {
+          setSession({ user: offlineUser } as any)
+        }
         if (mounted) setChecking(false)
       }
     }
@@ -43,12 +130,23 @@ export function AuthGate({ children }: AuthGateProps) {
       if (mounted) {
         setSession(newSession)
         
+        if (newSession?.user) {
+          saveOfflineUser({
+            id: newSession.user.id,
+            email: newSession.user.email,
+            cachedAt: Date.now()
+          })
+        }
+
         // Handle post-auth events
         if (event === 'SIGNED_IN' && (pathname === '/login' || pathname === '/')) {
           router.push('/dashboard')
         }
-        if (event === 'SIGNED_OUT' && pathname !== '/login') {
-          router.push('/login')
+        if (event === 'SIGNED_OUT') {
+          clearOfflineUser()
+          if (pathname !== '/login') {
+            router.push('/login')
+          }
         }
       }
     })
@@ -66,8 +164,10 @@ export function AuthGate({ children }: AuthGateProps) {
     if (checking) return
 
     const isPublicPath = pathname === "/" || pathname === "/login" || pathname === "/update-password" || pathname === "/documentation"
-    
-    if (!session && !isPublicPath) {
+    const hasOfflineAccess = !isNetworkAvailable() && !!getOfflineUser()
+    const isAuthenticated = !!session || hasOfflineAccess
+
+    if (!isAuthenticated && !isPublicPath) {
       // Check for auth parameters (invitation/recovery/PKCE)
       const hasAuthParams = typeof window !== 'undefined' && 
                           (window.location.hash.includes('access_token=') || 
@@ -81,7 +181,7 @@ export function AuthGate({ children }: AuthGateProps) {
       }
     }
 
-    if (session && (pathname === "/login" || pathname === "/")) {
+    if (isAuthenticated && (pathname === "/login" || pathname === "/")) {
       router.push("/dashboard")
     }
   }, [session, checking, pathname, router])

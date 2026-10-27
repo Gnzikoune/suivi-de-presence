@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "sonner"
 import { AuthGate } from "@/components/auth-gate"
 import { WhatsAppFloat } from "@/components/whatsapp-float"
+import { SWRegistration } from "@/components/sw-registration"
 import "./globals.css"
 
 const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" })
@@ -41,22 +42,4 @@ export default function RootLayout({
       </body>
     </html>
   )
-}
-
-function SWRegistration() {
-  const isClient = typeof window !== 'undefined'
-  
-  if (isClient && 'serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').then(
-        (registration) => {
-          console.log('SW registered: ', registration)
-        },
-        (err) => {
-          console.log('SW registration failed: ', err)
-        }
-      )
-    })
-  }
-  return null
 }

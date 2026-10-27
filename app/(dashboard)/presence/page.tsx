@@ -56,6 +56,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Calendar } from "@/components/ui/calendar"
 import { fetchStudents, fetchRecords, saveAttendance, fetchProfile, fetchSettings, fetchSessions, createSession, fetchCohorts } from "@/lib/api-service"
+import { saveAttendanceDraft, getAttendanceDraft } from "@/lib/offline-storage"
 import { useSyncQueue } from "@/hooks/use-sync-queue"
 import type { Student, ClassId, AttendanceRecord, Session, Cohort } from "@/lib/types"
 import { FORMATION_START, FORMATION_END } from "@/lib/constants"
@@ -88,7 +89,7 @@ export default function PresencePage() {
 
   const { data: students = [], mutate: mutateStudents, isLoading: isLoadingStudents } = useSWR(
     selectedCohortId !== "all" ? `students?cohortId=${selectedCohortId}` : "students", 
-    () => fetchStudents() // Note: Should filter by cohortId if available
+    () => fetchStudents(selectedCohortId !== "all" ? selectedCohortId : undefined)
   )
 
   const { isOnline, queue, addToQueue, isSyncing, sync } = useSyncQueue()
@@ -127,29 +128,38 @@ export default function PresencePage() {
   }, [selectedCohortId, dateStr, currentClassId, isOnline])
 
   const loadRecords = async () => {
-    let url = `/api/records?date=${dateStr}&classId=${currentClassId}`
-    if (currentSession) {
-      url += `&sessionId=${currentSession.id}`
+    // 1. First check if we have a local draft saved for this context
+    const draft = getAttendanceDraft(dateStr, currentClassId, selectedCohortId)
+    if (draft && draft.statusMap && draft.statusMap.length > 0) {
+      setStatusMap(new Map(draft.statusMap))
     }
-    
-    const res = await fetch(url)
-    if (res.ok) {
-      const records: AttendanceRecord[] = await res.json()
-      const map = new Map<string, { status: string, justification?: string }>()
-      records.forEach(r => {
-        map.set(r.studentId, { 
-          status: r.status || (r.present ? 'present' : 'absent'),
-          justification: r.justificationText
+
+    try {
+      const records = await fetchRecords(
+        dateStr, 
+        currentClassId, 
+        currentSession?.id, 
+        selectedCohortId !== "all" ? selectedCohortId : undefined
+      )
+      if (records && records.length > 0) {
+        const map = new Map<string, { status: string, justification?: string }>()
+        records.forEach(r => {
+          map.set(r.studentId, { 
+            status: r.status || (r.present ? 'present' : 'absent'),
+            justification: r.justificationText
+          })
         })
-      })
-      setStatusMap(map)
+        setStatusMap(map)
+      }
+    } catch (err) {
+      console.warn("[PresencePage] Unable to fetch records, keeping local status", err)
     }
   }
 
   // 2. Load existing records
   useEffect(() => {
     loadRecords()
-  }, [dateStr, currentClassId, currentSession])
+  }, [dateStr, currentClassId, currentSession, selectedCohortId])
 
   const classStudents = useMemo(() => {
     let list = students
@@ -247,6 +257,16 @@ export default function PresencePage() {
 
     setSaving(true)
     try {
+      // Immediately save locally as a draft so refresh / close keeps it
+      saveAttendanceDraft({
+        date: dateStr,
+        classId: currentClassId,
+        cohortId: selectedCohortId,
+        sessionId: currentSession?.id,
+        statusMap: Array.from(statusMap.entries()),
+        timestamp: Date.now()
+      })
+
       if (!isOnline) {
         addToQueue('ATTENDANCE', { 
           date: dateStr, 
@@ -254,13 +274,14 @@ export default function PresencePage() {
           sessionId: currentSession?.id,
           presentStudentsData: allStudentsData 
         })
+        toast.success("Pointage sauvegardé en local ! 💾 Sera synchronisé dès le retour du courant / réseau.")
         return
       }
       await saveAttendance(dateStr, currentClassId, allStudentsData, currentSession?.id)
       await loadRecords() // Refresh from DB to ensure sync
-      toast.success("Présence enregistrée")
+      toast.success("Présence enregistrée avec succès !")
     } catch (error) {
-      toast.error("Erreur lors de l'enregistrement. Mise en file d'attente.")
+      toast.warning("Connexion interrompue. Pointage sécurisé en local pour synchronisation ! 💾")
       addToQueue('ATTENDANCE', { 
         date: dateStr, 
         classId: currentClassId, 
@@ -324,6 +345,27 @@ export default function PresencePage() {
       </PageHeader>
 
       <div className="flex flex-col gap-6 p-4 md:p-6 pb-20 max-w-5xl mx-auto w-full">
+        {!isOnline && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-700 dark:text-amber-400 text-sm shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-300">
+                <WifiOff className="size-5 animate-pulse" />
+              </div>
+              <div>
+                <p className="font-semibold text-base">Mode Hors-Ligne (Coupure de courant / Réseau)</p>
+                <p className="text-xs opacity-90">
+                  Vous pouvez pointer les élèves normalement. Les données sont conservées sur cet appareil et seront synchronisées automatiquement dès le retour du courant ou de la connexion.
+                </p>
+              </div>
+            </div>
+            {queue.length > 0 && (
+              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/20 text-amber-700 dark:text-amber-300 whitespace-nowrap">
+                {queue.length} en attente
+              </Badge>
+            )}
+          </div>
+        )}
+
         {/* Controls */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Cohort Selection */}
