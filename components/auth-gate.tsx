@@ -33,7 +33,21 @@ export function AuthGate({ children }: AuthGateProps) {
     const checkSession = async () => {
       try {
         // 1. First get local session from browser storage (works offline)
-        const { data: { session: localSession } } = await supabase.auth.getSession()
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+        
+        // Handle invalid refresh token in getSession
+        if (sessionError && (sessionError.message?.toLowerCase().includes("refresh token") || (sessionError as any)?.code === "refresh_token_not_found")) {
+          console.warn("[AuthGate] Stale refresh token detected in storage. Cleaning up local session.")
+          await supabase.auth.signOut({ scope: "local" }).catch(() => {})
+          clearOfflineUser()
+          if (mounted) {
+            setSession(null)
+            setChecking(false)
+          }
+          return
+        }
+
+        const localSession = sessionData?.session || null
         const cachedOfflineUser = getOfflineUser()
 
         if (!isNetworkAvailable()) {
@@ -49,7 +63,21 @@ export function AuthGate({ children }: AuthGateProps) {
 
         // ONLINE: Verify with server
         try {
-          const { data: { user } } = await supabase.auth.getUser()
+          const { data: userData, error: userError } = await supabase.auth.getUser()
+
+          // Check if server rejected stale refresh token
+          if (userError && (userError.message?.toLowerCase().includes("refresh token") || (userError as any)?.code === "refresh_token_not_found")) {
+            console.warn("[AuthGate] Server reported invalid refresh token. Resetting expired session.")
+            await supabase.auth.signOut({ scope: "local" }).catch(() => {})
+            clearOfflineUser()
+            if (mounted) {
+              setSession(null)
+              setChecking(false)
+            }
+            return
+          }
+
+          const user = userData?.user
           if (mounted && user) {
             saveOfflineUser({
               id: user.id,
@@ -60,7 +88,17 @@ export function AuthGate({ children }: AuthGateProps) {
           } else if (mounted && cachedOfflineUser && !isNetworkAvailable()) {
             setSession({ user: cachedOfflineUser } as any)
           }
-        } catch (netErr) {
+        } catch (netErr: any) {
+          if (netErr?.message?.toLowerCase().includes("refresh token") || netErr?.code === "refresh_token_not_found") {
+            console.warn("[AuthGate] Network caught invalid refresh token. Resetting expired session.")
+            await supabase.auth.signOut({ scope: "local" }).catch(() => {})
+            clearOfflineUser()
+            if (mounted) {
+              setSession(null)
+              setChecking(false)
+            }
+            return
+          }
           console.warn("[AuthGate] Network check failed, fallback to local session", netErr)
           if (localSession || cachedOfflineUser) {
             if (mounted) setSession(localSession || ({ user: cachedOfflineUser } as any))
@@ -68,7 +106,16 @@ export function AuthGate({ children }: AuthGateProps) {
         }
         
         if (mounted) setChecking(false)
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.message?.toLowerCase().includes("refresh token") || err?.code === "refresh_token_not_found") {
+          await supabase.auth.signOut({ scope: "local" }).catch(() => {})
+          clearOfflineUser()
+          if (mounted) {
+            setSession(null)
+            setChecking(false)
+          }
+          return
+        }
         console.error("Auth session check error:", err)
         // Fallback to offline user if available
         const offlineUser = getOfflineUser()
